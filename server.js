@@ -89,25 +89,31 @@ wss.on('connection', async (ws, req) => {
     // 2. AVATAAN SUORAN YHTEYS GEMINI LIVEEN
     geminiWs = new WebSocket(GEMINI_WS_URL);
 
-    geminiWs.on('open', () => {
-      // ✅ Kytketään dynaaminen prompti ja oikea aito Live-ääni (aoede) tähän viestiin
+   geminiWs.on('open', () => {
+      console.log(`Yhteys Google Gemini 3.1 Live -rajapintaan avattu!`);
+      
+      // ✅ Tämä on se virallinen maaliskuun 2026 Live API -rakenne uudelle 3.1-mallille:
       const setupMessage = {
         setup: {
-          model: "models/gemini-3.1-flash-live-preview",
+          model: "models/gemini-3.1-flash-live-preview", // 🎯 Sun oikea malli!
           generationConfig: {
-            responseModalities: ["audio"],
+            responseModalities: ["AUDIO"], // 🎯 Pitää olla isoilla kirjaimilla!
             speechConfig: {
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: "aoede" } }
+              voiceConfig: { 
+                prebuiltVoiceConfig: { 
+                  voiceName: "aoede" // Empaattinen ääni
+                } 
+              }
             }
           },
           systemInstruction: {
-            parts: [{ text: getSystemPrompt(userLanguage) }] // ✅ Prompti otetaan nyt funktiosta!
+            parts: [{ text: getSystemPrompt(userLanguage) }]
           }
         }
       };
       geminiWs.send(JSON.stringify(setupMessage));
     });
-
+    
     // 3. KUUNNELLAAN GEMININ VASTAUKSIA JA VÄLITETÄÄN FLUTTERILLE
     geminiWs.on('message', (data) => {
       if (ws.readyState === WebSocket.OPEN) {
