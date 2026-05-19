@@ -79,6 +79,21 @@ ws.on('message', (message) => {
     const parsed = JSON.parse(message.toString());
 
     geminiWs.send(JSON.stringify(parsed));
+    setTimeout(() => {
+
+  if (geminiWs.readyState === WebSocket.OPEN) {
+
+    geminiWs.send(JSON.stringify({
+      realtimeInput: {
+        turnComplete: true
+      }
+    }));
+
+    console.log("✅ turnComplete sent to Gemini");
+
+  }
+
+}, 1500);
 
   } catch (error) {
     console.error("Virhe JSON välityksessä:", error);
