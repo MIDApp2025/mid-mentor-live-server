@@ -89,11 +89,13 @@ ws.on('close', () => {
   }
 });
 
-geminiWs.on('close', () => {
+geminiWs.on('close', (code, reason) => {
   console.log("Gemini sulki yhteyden.");
+  console.log("CODE:", code);
+  console.log("REASON:", reason.toString());
+
   ws.close();
 });
-
 geminiWs.on('error', (err) => {
   console.error("Gemini virhe:", err);
 });
