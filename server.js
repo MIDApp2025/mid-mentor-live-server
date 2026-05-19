@@ -25,7 +25,7 @@ wss.on('connection', (ws) => {
       setup: {
         model: "models/gemini-3.1-flash-live-preview",
         generationConfig: {
-          responseModalities: ["AUDIO"],
+          responseModalities: ["AUDIO", "TEXT"],
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: "aoede" } }
           }
@@ -53,11 +53,15 @@ geminiWs.on('message', (data) => {
     // ✅ OIKEA HETKI AVATA AUDIO
     if (parsed.setupComplete) {
       isGoogleReady = true;
+      console.log("🎤 Audio streaming enabled");
       console.log("🚀 Gemini setupComplete vastaanotettu!");
     }
 
   } catch (_) {}
-
+  
+if (text.includes("serverContent")) {
+  console.log("🎧 AI RESPONSE RECEIVED");
+}
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(data);
   }
