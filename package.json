@@ -1,0 +1,12 @@
+{
+  "name": "mid-mentor-live-server",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.1.0",
+    "ws": "^8.17.0"
+  }
+}
