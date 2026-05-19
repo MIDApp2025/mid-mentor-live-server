@@ -53,47 +53,44 @@ wss.on('connection', (ws) => {
   });
 
   // Flutter -> Gemini
-  ws.on('message', (message) => {
-    // 🎯 JOS GOOGLE EI OLE VALMIS, HEITETÄÄN ALKUTAVUT POIS EIKÄ RIKOTA YHTEYTTÄ
-    if (!geminiWs || geminiWs.readyState !== WebSocket.OPEN || !isGoogleReady) {
-      return; 
-    }
+ws.on('message', (message) => {
 
-    try {
-      const rawBuffer = Buffer.from(message);
-      if (rawBuffer.length === 0) return;
+  // 🎯 JOS GOOGLE EI OLE VALMIS
+  if (!geminiWs || geminiWs.readyState !== WebSocket.OPEN || !isGoogleReady) {
+    return;
+  }
 
-      const base64Audio = rawBuffer.toString("base64");
-      
-      const audioEvent = {
-        realtimeInput: {
-          mediaChunks: [{ 
-            mimeType: "audio/pcm;rate=16000", 
-            data: base64Audio 
-          }]
-        }
-      };
-      
-      geminiWs.send(JSON.stringify(audioEvent));
-    } catch (error) {
-      console.error("Virhe datan muunnoksessa:", error);
-    }
-  });
+  try {
+    const parsed = JSON.parse(message.toString());
 
-  ws.on('close', () => {
-    console.log("Puhelu päättyi.");
-    if (geminiWs) geminiWs.close();
-  });
+    geminiWs.send(JSON.stringify(parsed));
 
-  geminiWs.on('close', () => {
-    console.log("Gemini sulki yhteyden.");
-    ws.close();
-  });
-  
-  geminiWs.on('error', (err) => console.error("Gemini virhe:", err));
+  } catch (error) {
+    console.error("Virhe JSON välityksessä:", error);
+  }
+});
+
+ws.on('close', () => {
+  console.log("Puhelu päättyi.");
+
+  if (geminiWs) {
+    geminiWs.close();
+  }
+});
+
+geminiWs.on('close', () => {
+  console.log("Gemini sulki yhteyden.");
+  ws.close();
+});
+
+geminiWs.on('error', (err) => {
+  console.error("Gemini virhe:", err);
+});
+
 });
 
 const PORT = process.env.PORT || 8080;
+
 server.listen(PORT, () => {
   console.log(`Palvelin pyörii onnistuneesti portissa ${PORT}`);
 });
