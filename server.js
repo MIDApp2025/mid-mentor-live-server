@@ -36,21 +36,32 @@ wss.on('connection', (ws) => {
       }
     };
     
-    geminiWs.send(JSON.stringify(setupMessage));
-    
-    // Antaa Googlelle pienen hetken (100ms) aktivoida malli ennen kuin sallitaan ääni
-    setTimeout(() => {
-      isGoogleReady = true;
-      console.log("🚀 Gemini 3.1 Live on nyt valmis vastaanottamaan puhetta!");
-    }, 100);
-  });
+  geminiWs.send(JSON.stringify(setupMessage));
 
-  // Gemini -> Flutter
-  geminiWs.on('message', (data) => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(data);
+});
+
+// Gemini -> Flutter
+geminiWs.on('message', (data) => {
+
+  const text = data.toString();
+
+  console.log("FROM GEMINI:", text.slice(0, 500));
+
+  try {
+    const parsed = JSON.parse(text);
+
+    // ✅ OIKEA HETKI AVATA AUDIO
+    if (parsed.setupComplete) {
+      isGoogleReady = true;
+      console.log("🚀 Gemini setupComplete vastaanotettu!");
     }
-  });
+
+  } catch (_) {}
+
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(data);
+  }
+});
 
   // Flutter -> Gemini
 ws.on('message', (message) => {
