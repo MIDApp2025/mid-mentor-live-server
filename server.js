@@ -14,10 +14,12 @@ const wss = new WebSocket.Server({ server });
 wss.on('connection', (ws) => {
   console.log("Puhelin yhdisti palvelimelle! Avataan yhteys Geminiin...");
   let geminiWs = new WebSocket(GEMINI_WS_URL);
-  let isSetupDone = false;
+  
+  // 🎯 PORTINVARTTIJA: False kunnes Google on VALMIS ottamaan vastaan ääntä
+  let isGoogleReady = false; 
 
   geminiWs.on('open', () => {
-    console.log("Yhteys Google Gemini 3.1 Liveen on auki!");
+    console.log("Yhteys Google Gemini 3.1 Liveen avattu. Lähetetään setup...");
     
     const setupMessage = {
       setup: {
@@ -33,8 +35,14 @@ wss.on('connection', (ws) => {
         }
       }
     };
+    
     geminiWs.send(JSON.stringify(setupMessage));
-    isSetupDone = true;
+    
+    // Antaa Googlelle pienen hetken (100ms) aktivoida malli ennen kuin sallitaan ääni
+    setTimeout(() => {
+      isGoogleReady = true;
+      console.log("🚀 Gemini 3.1 Live on nyt valmis vastaanottamaan puhetta!");
+    }, 100);
   });
 
   // Gemini -> Flutter
@@ -44,15 +52,15 @@ wss.on('connection', (ws) => {
     }
   });
 
-  // Flutter -> Gemini (KORJATTU JA VARMISTETTU DATAN KÄSITTELY)
+  // Flutter -> Gemini
   ws.on('message', (message) => {
-    if (!geminiWs || geminiWs.readyState !== WebSocket.OPEN || !isSetupDone) return;
+    // 🎯 JOS GOOGLE EI OLE VALMIS, HEITETÄÄN ALKUTAVUT POIS EIKÄ RIKOTA YHTEYTTÄ
+    if (!geminiWs || geminiWs.readyState !== WebSocket.OPEN || !isGoogleReady) {
+      return; 
+    }
 
     try {
-      // Muutetaan Flutterista tullut data (oli se sitten Buffer, ArrayBuffer tai teksti) varmasti Base64-muotoon
       const rawBuffer = Buffer.from(message);
-      
-      // Varmistetaan, ettei lähetetä tyhjiä paketteja
       if (rawBuffer.length === 0) return;
 
       const base64Audio = rawBuffer.toString("base64");
