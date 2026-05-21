@@ -58,6 +58,22 @@ wss.on('connection', async (ws, req) => {
   quotaCheckInterval = setInterval(() => {
     const elapsedSeconds = (Date.now() - startTime) / 1000;
 
+    const usedMinutesRealtime =
+  Math.floor(elapsedSeconds / 60);
+
+const newRemainingRealtime =
+  Math.max(0, remainingMinutes - usedMinutesRealtime);
+
+if (userId) {
+  db.collection('userProfiles')
+    .doc(userId)
+    .update({
+      voice_quota_remaining:
+        newRemainingRealtime
+    })
+    .catch(console.error);
+}
+
     if (elapsedSeconds / 60 >= remainingMinutes) {
       console.log(`User ${userId} quota exceeded`);
 
@@ -176,7 +192,7 @@ ${edellinenPuheluTiivistelma}
       Interrupted: ${isInterrupted})`
     );
 
-  }, 700);
+  }, 250);
 }
         } // <-- TÄMÄ PUUTTUU SINULTA
       // Tulostetaan teksti VAIN jos se EI sisällä raakaa audiodataa
