@@ -32,7 +32,7 @@ const userId = url.searchParams.get('userId');
 const startTime = Date.now();
 
 let quotaCheckInterval = null;
-  
+  let geminiIsSpeaking = false; // Pitää kirjaa Geminin puhetilasta
   let isGoogleReady = false; 
   let remainingMinutes = 30;
 
@@ -148,6 +148,7 @@ ${edellinenPuheluTiivistelma}
   // Gemini -> Flutter
   // Gemini -> Flutter
   // Gemini -> Flutter
+// Gemini -> Flutter
   geminiWs.on('message', (data) => {
     try {
       const text = data.toString();
@@ -158,10 +159,24 @@ ${edellinenPuheluTiivistelma}
       }
 
       const parsed = JSON.parse(text);
+
+      // 🎯 SEURATAAN MILLOIN GEMINI PUHUU:
+      if (parsed.serverContent) {
+        // Jos sieltä tulee modelTurn ja osia (audio), Gemini puhuu parhaillaan
+        if (parsed.serverContent.modelTurn) {
+          geminiIsSpeaking = true;
+        }
+        
+        // Kun tekoälyn vuoro (lause/vastaus) on kokonaan valmis, vapautetaan mikrofoni
+        if (parsed.serverContent.turnComplete === true || parsed.serverContent.generationComplete === true) {
+          geminiIsSpeaking = false;
+          console.log("🤖 Gemini lopetti puheen. Mikrofoni avattu.");
+        }
+      }
+
       if (parsed.setupComplete) {
         isGoogleReady = true;
         console.log("🎤 Audio streaming enabled & setupComplete!");
-
 
         // 🔥 PAKOTETAAN GEMINI ALOITTAMAAN PUHELU ITSE (Keskeytykset estetty alussa)
         const kaynnistysViesti = {
@@ -183,9 +198,27 @@ ${edellinenPuheluTiivistelma}
     }
   });
   // Flutter -> Gemini
+  // Flutter -> Gemini
   ws.on('message', (message) => {
     if (!geminiWs || geminiWs.readyState !== WebSocket.OPEN || !isGoogleReady) {
       return;
+    }
+
+    // 🎯 KAIKUENESTO PALVELIMELLA:
+    // Jos Gemini puhuu parhaillaan, EI päästetä mikrofonidataa läpi Googlelle asti.
+    // Tämä estää kaiun puhelimen kaiuttimesta mikkiin ja säästää token-kuluja rajusti!
+    if (geminiIsSpeaking) {
+      try {
+        const parsed = JSON.parse(message.toString());
+        // Sallitaan vain järjestelmäviestit tai muut kuin reaaliaikainen audio, jos sellaisia on.
+        // Mutta jos kyseessä on mikrofoniääni (realtimeInput), skipataan se kokonaan.
+        if (parsed.realtimeInput && parsed.realtimeInput.audio) {
+          return; // Blokataan mikkiääni lennosta!
+        }
+      } catch (e) {
+        // Jos se on raakaa dataa tai rikkinäistä JSONia, varmuuden vuoksi blokataan se Geminin puhuessa
+        return;
+      }
     }
 
     try {
