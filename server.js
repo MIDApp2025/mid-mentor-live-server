@@ -39,7 +39,7 @@ wss.on('connection', async (ws, req) => {
   // 🎯 TAUSTAPALVELIMEN PUSKUROINTI: Kerätään puhelimen mikrofoniääntä hetki ennen Googlelle lähetystä.
   // Tämä takaa salamannopean yhteyden ilman datakatkoja ja säästää kaistaa!
   let audioBuffer = [];
-  const BUFFER_THRESHOLD = 5; // Kuinka monta pientä pakettia yhdistetään yhdeksi laadukkaaksi paketiksi
+  const BUFFER_THRESHOLD = 2; // Pudotetaan kynnystä, jotta ääni pamahtaa Googlelle heti!
 
   if (userId) {
     try {
