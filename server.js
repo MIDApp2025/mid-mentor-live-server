@@ -146,6 +146,8 @@ ${edellinenPuheluTiivistelma}
 
   // Gemini -> Flutter
   // Gemini -> Flutter
+  // Gemini -> Flutter
+  // Gemini -> Flutter
   geminiWs.on('message', (data) => {
     try {
       const text = data.toString();
@@ -159,6 +161,19 @@ ${edellinenPuheluTiivistelma}
       if (parsed.setupComplete) {
         isGoogleReady = true;
         console.log("🎤 Audio streaming enabled & setupComplete!");
+
+        // 🔥 PAKOTETAAN GEMINI ALOITTAMAAN PUHELU ITSE:
+        const kaynnistysViesti = {
+          clientContent: {
+            turns: [{
+              role: "user",
+              parts: [{ text: "Hello! Please greet the user and start the session now in their language." }]
+            }],
+            turnComplete: true
+          }
+        };
+        geminiWs.send(JSON.stringify(kaynnistysViesti));
+        console.log("🤖 Käynnistyskäsky lähetetty Geminiin. Gemini aloittaa puhelun!");
       }
     } catch (_) {}
     
@@ -166,7 +181,6 @@ ${edellinenPuheluTiivistelma}
       ws.send(data);
     }
   });
-
   // Flutter -> Gemini
   ws.on('message', (message) => {
     if (!geminiWs || geminiWs.readyState !== WebSocket.OPEN || !isGoogleReady) {
