@@ -1,6 +1,18 @@
 const http = require('http');
 const WebSocket = require('ws');
+const admin = require('firebase-admin');
 
+if (!admin.apps.length) {
+  const serviceAccount = JSON.parse(
+    Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8')
+  );
+
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+}
+
+const db = admin.firestore();
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_WS_URL = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`;
 
@@ -11,12 +23,54 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocket.Server({ server });
 
-wss.on('connection', (ws) => {
+wss.on('connection', async (ws, req) => {
   console.log("Puhelin yhdisti palvelimelle! Avataan yhteys Geminiin...");
   let geminiWs = new WebSocket(GEMINI_WS_URL);
+  const url = new URL(req.url, `http://${req.headers.host}`);
+const userId = url.searchParams.get('userId');
+
+const startTime = Date.now();
+
+let quotaCheckInterval = null;
   
   let isGoogleReady = false; 
+  let remainingMinutes = 30;
 
+if (userId) {
+  try {
+    const userDoc = await db.collection('userProfiles').doc(userId).get();
+
+    if (userDoc.exists) {
+      remainingMinutes =
+        userDoc.data().voice_quota_remaining ?? 30;
+    }
+
+    console.log("Remaining minutes:", remainingMinutes);
+
+    if (remainingMinutes <= 0) {
+      ws.close(4003, "No minutes remaining");
+      return;
+    }
+  } catch (err) {
+    console.error("Quota read error:", err);
+  }
+}
+quotaCheckInterval = setInterval(() => {
+  const elapsedSeconds = (Date.now() - startTime) / 1000;
+
+  if (elapsedSeconds / 60 >= remainingMinutes) {
+    console.log(`User ${userId} quota exceeded`);
+
+    ws.send(
+      JSON.stringify({
+        type: "error",
+        message: "Voice minutes exhausted"
+      })
+    );
+
+    ws.close(4000, "Quota exceeded");
+  }
+}, 10000);
 geminiWs.on('open', () => {
     console.log("Yhteys Google Gemini 3.1 Liveen avattu. Lähetetään setup...");
     
@@ -127,12 +181,49 @@ ${edellinenPuheluTiivistelma}
     }
   });
 
-  ws.on('close', () => {
-    console.log("Puhelu päättyi.");
-    if (geminiWs) {
-      geminiWs.close();
+  ws.on('close', async () => {
+  console.log("Puhelu päättyi.");
+
+  clearInterval(quotaCheckInterval);
+
+  if (geminiWs) {
+    geminiWs.close();
+  }
+
+  const durationSeconds = (Date.now() - startTime) / 1000;
+
+  const usedMinutes = Math.ceil(durationSeconds / 60);
+
+  console.log("Used minutes:", usedMinutes);
+
+  if (userId && usedMinutes > 0) {
+    try {
+      const userRef = db.collection('userProfiles').doc(userId);
+
+      await db.runTransaction(async (transaction) => {
+        const sfDoc = await transaction.get(userRef);
+
+        const currentRemaining =
+          sfDoc.data().voice_quota_remaining ?? 30;
+
+        const newRemaining = Math.max(
+          0,
+          currentRemaining - usedMinutes
+        );
+
+        transaction.update(userRef, {
+          voice_quota_remaining: newRemaining,
+        });
+
+        console.log(
+          `Updated remaining minutes: ${newRemaining}`
+        );
+      });
+    } catch (err) {
+      console.error("Quota update error:", err);
     }
-  });
+  }
+});
 
   geminiWs.on('close', (code, reason) => {
     console.log("Gemini sulki yhteyden.");
