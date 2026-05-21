@@ -162,12 +162,13 @@ ${edellinenPuheluTiivistelma}
         isGoogleReady = true;
         console.log("🎤 Audio streaming enabled & setupComplete!");
 
-        // 🔥 PAKOTETAAN GEMINI ALOITTAMAAN PUHELU ITSE:
+
+        // 🔥 PAKOTETAAN GEMINI ALOITTAMAAN PUHELU ITSE (Keskeytykset estetty alussa)
         const kaynnistysViesti = {
           clientContent: {
             turns: [{
               role: "user",
-              parts: [{ text: "Hello! Please greet the user and start the session now in their language." }]
+              parts: [{ text: "Hello! Please greet the user and start the session now in their language. Do not let the user interrupt this very first greeting." }]
             }],
             turnComplete: true
           }
