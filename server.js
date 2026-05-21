@@ -23,13 +23,18 @@ geminiWs.on('open', () => {
     // 🧠 PALAUTE EDELLESEN PUHELUN ASIASTA (Paikka Firebasen datalle)
     const edellinenPuheluTiivistelma = "Käyttäjän kanssa on aloitettu hyvinvointivalmennus."; 
 
-    const systemPrompt = `Your name is MID Mentor. You are a compassionate, professional wellbeing coach. 
-    
-    CRITICAL INSTRUCTIONS FOR TONE AND METHOD:
-    1. Coaching Style: Guide the user deeply using advanced psychological and behavioral coaching patterns (such as reframing, pacing, and leading), but NEVER mention technical terms like "NLP", "Neuro-linguistic programming", "framework", or "technique" to the user. Keep it completely natural and conversational.
-    2. Zero Hardcoded Language: Do NOT assume a default language. Listen to the first words the user speaks, detect the language instantly, and respond in that exact same language. 
-    3. Fluid Language Switching: Be ready to switch languages mid-conversation if the user switches. Support any language fluidly (Finnish, English, Swedish, German, French, Spanish, Arabic, etc.) without commenting on the language change.
-    4. Speech Optimization: Keep your responses naturally structured for a real-time voice call. Avoid long bulleted lists and overly text-heavy explanations.
+    const systemPrompt = `Your name is MID Mentor. You are a master-level psychological and behavioral wellbeing coach. You communicate with absolute empathy, precision, and depth.
+
+    CRITICAL COACHING METHODOLOGY (NLP-inspired):
+    1. Do NOT offer generic advice: Never immediately suggest cliché solutions like "go for a walk", "breathe", or "listen to music" unless explicitly relevant to a breakthrough. 
+    2. Pacing and Leading: First, echo and validate the user's emotional state (pacing). Use their structural worldview, then gently nudge them towards alternative perspectives (leading).
+    3. Reframing: Help the user shift their focus from the problem to their internal resources. Ask open-ended, powerful questions that make them pause and think (e.g., "What does this stress protect you from right now?" or "When have you felt completely in control, and what was present then?").
+    4. Absolute Jargon Ban: Do NOT use technical words like "NLP", "reframing", "pacing", "anchoring", or "method". Speak like a wise, deeply perceptive human being.
+
+    CRITICAL LANGUAGE INSTRUCTIONS:
+    1. Zero Hardcoded Language: Listen to the first words the user speaks, detect the language instantly, and respond in that exact same language.
+    2. Fluid Language Switching: Be ready to switch languages mid-conversation if the user switches. Support any language fluidly (Finnish, English, Swedish, German, French, Spanish, Arabic, etc.) without commenting on the change.
+    3. Speech Optimization: Keep responses conversational and naturally paced for a voice call. Avoid lists.
     
     CONTEXT FROM PREVIOUS SESSION:
     ${edellinenPuheluTiivistelma}`;
@@ -53,22 +58,23 @@ geminiWs.on('open', () => {
   });
 
   // Gemini -> Flutter
+  // Gemini -> Flutter
   geminiWs.on('message', (data) => {
-    const text = data.toString();
-    console.log("FROM GEMINI:", text.slice(0, 500));
-
     try {
+      const text = data.toString();
+      
+      // Tulostetaan teksti VAIN jos se EI sisällä raakaa audiodataa (säästää lokeja)
+      if (!text.includes("inlineData")) {
+        console.log("FROM GEMINI (System/Text):", text.slice(0, 300));
+      }
+
       const parsed = JSON.parse(text);
       if (parsed.setupComplete) {
         isGoogleReady = true;
-        console.log("🎤 Audio streaming enabled");
-        console.log("🚀 Gemini setupComplete vastaanotettu!");
+        console.log("🎤 Audio streaming enabled & setupComplete!");
       }
     } catch (_) {}
     
-    if (text.includes("serverContent")) {
-      console.log("🎧 AI RESPONSE RECEIVED");
-    }
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(data);
     }
