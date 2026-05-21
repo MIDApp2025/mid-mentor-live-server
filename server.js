@@ -29,8 +29,10 @@ wss.on('connection', async (ws, req) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   
   // 🔒 LUKITAAN MUUTTUJAT PAREMMIN: Käytetään let-muuttujia, jotta ne näkyvät jokaiseen alalohkoon satavarmasti
-  let userId = url.searchParams.get('userId');
-  let companyId = "YVBGbAsPAUnP3w1OZsMA"; // Oletusarvo
+ const userId = url.searchParams.get('userId');
+
+ws.userId = userId;
+ws.companyId = "YVBGbAsPAUnP3w1OZsMA";
 
   const startTime = Date.now();
 
@@ -46,14 +48,14 @@ wss.on('connection', async (ws, req) => {
   let audioBuffer = [];
   const BUFFER_THRESHOLD = 2;
 
-  if (userId) {
+  if (ws.userId) {
     try {
-      const userDoc = await db.collection('userProfiles').doc(userId).get();
+      const userDoc = await db.collection('userProfiles').doc(ws.userId).get();
       if (userDoc.exists) {
         remainingMinutes = userDoc.data().voice_quota_remaining ?? 30;
-        companyId = userDoc.data().companyId || "YVBGbAsPAUnP3w1OZsMA";
+        ws.companyId = userDoc.data().companyId || "YVBGbAsPAUnP3w1OZsMA";
       }
-      console.log("Remaining minutes:", remainingMinutes, "Company ID:", companyId);
+     console.log("Remaining minutes:", remainingMinutes, "Company ID:", ws.companyId);
 
       if (remainingMinutes <= 0) {
         ws.close(4003, "No minutes remaining");
@@ -66,8 +68,8 @@ wss.on('connection', async (ws, req) => {
 
   quotaCheckInterval = setInterval(() => {
     const elapsedSeconds = (Date.now() - startTime) / 1000;
-    if (userId && (elapsedSeconds / 60 >= remainingMinutes)) {
-      console.log(`User ${userId} quota exceeded`);
+    if (ws.userId && (elapsedSeconds / 60 >= remainingMinutes)) {
+      console.log(`User ${ws.userId} quota exceeded`);
       ws.send(
         JSON.stringify({
           type: "error",
@@ -265,10 +267,10 @@ ${edellinenPuheluTiivistelma}
     console.log("Used minutes:", usedMinutes);
 
     // 1. Päivitetään minuuttikiintiöt Firestoreen
-    if (userId && usedMinutes > 0) {
+   if (ws.userId && usedMinutes > 0) {
       try {
         console.log("WRITING TO FIRESTORE NOW");
-        const userRef = db.collection('userProfiles').doc(userId);
+        const userRef = db.collection('userProfiles').doc(ws.userId);
 
         await db.runTransaction(async (transaction) => {
           const sfDoc = await transaction.get(userRef);
@@ -291,7 +293,7 @@ ${edellinenPuheluTiivistelma}
     }
 
     // 📝 3. Lähetetään tiedot Vercelille AINA kun userId on olemassa
-    if (userId) {
+    if (ws.userId) {
       try {
         console.log(`🔍 Valmistellaan Vercel-kutsua. Historian rivejä kerätty: ${chatHistory.length}`);
         
@@ -306,8 +308,8 @@ ${edellinenPuheluTiivistelma}
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            userId: userId,
-            companyId: companyId,
+            userId: ws.userId,
+companyId: ws.companyId,
             durationSeconds: Math.round(durationSeconds),
             transcript: fullTranscript
           })
