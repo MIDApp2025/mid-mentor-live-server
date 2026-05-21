@@ -35,9 +35,9 @@ wss.on('connection', async (ws, req) => {
   let geminiIsSpeaking = false; 
   let isGoogleReady = false; 
   let remainingMinutes = 30;
-  let companyId = "YVBGbAsPAUnP3w1OZsMA"; // Oletusarvo, joka päivitetään alta
+  let companyId = "YVBGbAsPAUnP3w1OZsMA"; // Oletusarvo
 
-  // 📝 UUSI: Kerätään puhelun tekstitranskriptio tähän taulukkoon taustalla halpaa analyysiä varten
+  // 📝 Kerätään puhelun tekstitranskriptio tähän taulukkoon taustalla
   let chatHistory = [];
 
   // 🎯 TAUSTAPALVELIMEN PUSKUROINTI
@@ -49,7 +49,6 @@ wss.on('connection', async (ws, req) => {
       const userDoc = await db.collection('userProfiles').doc(userId).get();
       if (userDoc.exists) {
         remainingMinutes = userDoc.data().voice_quota_remaining ?? 30;
-        // Poimitaan yrityksen ID talteen, jotta se voidaan lähettää anonyymisti eteenpäin
         companyId = userDoc.data().companyId || "YVBGbAsPAUnP3w1OZsMA";
       }
       console.log("Remaining minutes:", remainingMinutes, "Company ID:", companyId);
@@ -141,7 +140,6 @@ ${edellinenPuheluTiivistelma}
         if (parsed.serverContent.modelTurn) {
           geminiIsSpeaking = true;
 
-          // 📝 UUSI: Poimitaan Geminin oma puhe tekstinä talteen analyysiä varten
           const parts = parsed.serverContent.modelTurn.parts || [];
           parts.forEach(p => {
             if (p.text && p.text.trim().length > 0) {
@@ -160,7 +158,6 @@ ${edellinenPuheluTiivistelma}
         }
       }
 
-      // 📝 UUSI: Poimitaan käyttäjän puhe (Litterointi/Transcription) talteen, jonka Gemini tunnisti livenä
       if (parsed.serverContent && parsed.serverContent.userTurn) {
         const parts = parsed.serverContent.userTurn.parts || [];
         parts.forEach(p => {
@@ -244,17 +241,28 @@ ${edellinenPuheluTiivistelma}
   });
 
   // ==========================================
+  // GEMINI STRUCTURAL LISTENERS (Turvalliset paikat)
+  // ==========================================
+  geminiWs.on('close', (code, reason) => {
+    console.log("Gemini sulki yhteyden taustalla.", code, reason.toString());
+  });
+
+  geminiWs.on('error', (err) => {
+    console.error("Gemini-rajapintavirhe havaittu:", err);
+  });
+
+  // ==========================================
   // PUHELUN SULKEUTUMINEN (Päivitykset + Vercel-pukku)
   // ==========================================
   ws.on('close', async () => {
-    console.log("Puhelu päättyi.");
+    console.log("🔴 Puhelu päättyi. Aloitetaan sulkuprosessit...");
     clearInterval(quotaCheckInterval);
 
     const durationSeconds = (Date.now() - startTime) / 1000;
     const usedMinutes = Math.ceil(durationSeconds / 60);
     console.log("Used minutes:", usedMinutes);
 
-    // 1. Päivitetään minuuttikiintiöt Firestoreen (Alkuperäinen koodisi)
+    // 1. Päivitetään minuuttikiintiöt Firestoreen
     if (userId && usedMinutes > 0) {
       try {
         console.log("WRITING TO FIRESTORE NOW");
@@ -275,25 +283,23 @@ ${edellinenPuheluTiivistelma}
       }
     }
     
-    // 2. Suljetaan Geminin WebSocket heti, jotta kallis Live Audio -laskutus katkeaa lennosta
+    // 2. Suljetaan Geminin WebSocket heti laskutuksen katkaisemiseksi
     if (geminiWs) {
       geminiWs.close();
     }
 
-    // 📝 3. UUSI: Lähetetään kertyneet tekstit Vercelin 'processMentorAnalysis' -funktiolle
-    if (userId && chatHistory.length > 0) {
+    // 📝 3. Lähetetään tiedot Vercelille AINA kun userId on olemassa
+    if (userId) {
       try {
-        console.log("Lähetetään transkriptio Verceliin halpaa analyysiä varten...");
+        console.log(`🔍 Valmistellaan Vercel-kutsua. Historian rivejä kerätty: ${chatHistory.length}`);
         
-        // Rakennetaan selkeä tekstipötkö: "Käyttäjä: Hei", "Mentor: Huomenta" jne.
-        const fullTranscript = chatHistory
-          .map(h => `${h.role === 'user' ? 'Käyttäjä' : 'Mentor'}: ${h.text}`)
-          .join('\n');
+        const fullTranscript = chatHistory.length > 0
+          ? chatHistory.map(h => `${h.role === 'user' ? 'Käyttäjä' : 'Mentor'}: ${h.text}`).join('\n')
+          : `Käyttäjä kävi lyhyen ${Math.round(durationSeconds)} sekunnin mittaisen mentor-äänipuhelun sovelluksessa.`;
 
-        // HUOM: Vaihda tähän alle sinun TARKKA Vercel-projektisi osoite!
         const vercelUrl = 'https://www.midconsulting.io/api/processMentorAnalysis';
+        console.log("🚀 Puskettaan analyysipyyntö osoitteeseen:", vercelUrl);
         
-        // Pukataan data taustalla Vercelille (ilman awaitia, ettei puhelun sulku viivästy!)
         fetch(vercelUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -304,24 +310,22 @@ ${edellinenPuheluTiivistelma}
             transcript: fullTranscript
           })
         })
-        .then(res => res.json())
-        .then(data => console.log("✅ Vercel suoritti mentor-analyysin:", data.message || data))
-        .catch(err => console.error("❌ Vercel-kutsu epäonnistui:", err));
+        .then(async (res) => {
+          console.log(`📡 Vercel vastasi HTTP-statuksella: ${res.status}`);
+          const data = await res.json();
+          console.log("✅ Vercel-analyysin lopputulos:", data);
+        })
+        .catch(err => console.error("❌ Itse fetch-verkkopyyntö Verceliin epäonnistui:", err));
 
       } catch (analError) {
-        console.error("Virhe Vercel-kutsun valmistelussa:", analError);
+        console.error("❌ Virhe Vercel-kutsun suorituksessa Railway-päässä:", analError);
       }
+    } else {
+      console.log("⚠️ Vercel-kutsua ei tehty, koska userId puuttuu.");
     }
   });
 
-  geminiWs.on('close', (code, reason) => {
-    console.log("Gemini sulki yhteyden.", code, reason.toString());
-  });
-
-  geminiWs.on('error', (err) => {
-    console.error("Gemini virhe:", err);
-  });
-});
+}); // <-- wss.on('connection') sulkeutuu siististi täällä kaikkien alitapahtumien jälkeen!
 
 const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
