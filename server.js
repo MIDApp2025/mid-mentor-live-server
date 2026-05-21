@@ -237,9 +237,7 @@ ${edellinenPuheluTiivistelma}
 
     clearInterval(quotaCheckInterval);
 
-    if (geminiWs) {
-      geminiWs.close();
-    }
+
 
     const durationSeconds = (Date.now() - startTime) / 1000;
     const usedMinutes = Math.ceil(durationSeconds / 60);
@@ -248,6 +246,7 @@ ${edellinenPuheluTiivistelma}
 
     if (userId && usedMinutes > 0) {
       try {
+        console.log("WRITING TO FIRESTORE NOW");
         const userRef = db.collection('userProfiles').doc(userId);
 
         await db.runTransaction(async (transaction) => {
@@ -266,6 +265,11 @@ ${edellinenPuheluTiivistelma}
         console.error("Quota update error:", err);
       }
     }
+      // TÄNNE SIIRRETTIIN
+  if (geminiWs) {
+    geminiWs.close();
+  }
+
   });
 
   geminiWs.on('close', (code, reason) => {
