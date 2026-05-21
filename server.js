@@ -35,19 +35,24 @@ wss.on('connection', async (ws, req) => {
   let geminiIsSpeaking = false; 
   let isGoogleReady = false; 
   let remainingMinutes = 30;
+  let companyId = "YVBGbAsPAUnP3w1OZsMA"; // Oletusarvo, joka päivitetään alta
 
-  // 🎯 TAUSTAPALVELIMEN PUSKUROINTI: Kerätään puhelimen mikrofoniääntä hetki ennen Googlelle lähetystä.
-  // Tämä takaa salamannopean yhteyden ilman datakatkoja ja säästää kaistaa!
+  // 📝 UUSI: Kerätään puhelun tekstitranskriptio tähän taulukkoon taustalla halpaa analyysiä varten
+  let chatHistory = [];
+
+  // 🎯 TAUSTAPALVELIMEN PUSKUROINTI
   let audioBuffer = [];
-  const BUFFER_THRESHOLD = 2; // Pudotetaan kynnystä, jotta ääni pamahtaa Googlelle heti!
+  const BUFFER_THRESHOLD = 2;
 
   if (userId) {
     try {
       const userDoc = await db.collection('userProfiles').doc(userId).get();
       if (userDoc.exists) {
         remainingMinutes = userDoc.data().voice_quota_remaining ?? 30;
+        // Poimitaan yrityksen ID talteen, jotta se voidaan lähettää anonyymisti eteenpäin
+        companyId = userDoc.data().companyId || "YVBGbAsPAUnP3w1OZsMA";
       }
-      console.log("Remaining minutes:", remainingMinutes);
+      console.log("Remaining minutes:", remainingMinutes, "Company ID:", companyId);
 
       if (remainingMinutes <= 0) {
         ws.close(4003, "No minutes remaining");
@@ -125,7 +130,7 @@ ${edellinenPuheluTiivistelma}
   });
 
   // ==========================================
-  // GEMINI -> FLUTTER (Vakaa puhetilan tunnistus)
+  // GEMINI -> FLUTTER (Ja tekstin poiminta talteen)
   // ==========================================
   geminiWs.on('message', (data) => {
     try {
@@ -133,20 +138,36 @@ ${edellinenPuheluTiivistelma}
       const parsed = JSON.parse(text);
 
       if (parsed.serverContent) {
-        // Jos Gemini lähettää audiopaloja, se puhuu satavarmasti
         if (parsed.serverContent.modelTurn) {
           geminiIsSpeaking = true;
+
+          // 📝 UUSI: Poimitaan Geminin oma puhe tekstinä talteen analyysiä varten
+          const parts = parsed.serverContent.modelTurn.parts || [];
+          parts.forEach(p => {
+            if (p.text && p.text.trim().length > 0) {
+              chatHistory.push({ role: 'mentor', text: p.text.trim() });
+            }
+          });
         }
         
         const isTurnComplete = parsed.serverContent.turnComplete === true;
         const isGenerationComplete = parsed.serverContent.generationComplete === true;
         const isInterrupted = parsed.serverContent.interrupted === true;
         
-        // Vapautetaan linja heti kun Gemini on valmis ilman epämääräisiä setTimeout-kikkailuja
         if (isTurnComplete || isGenerationComplete || isInterrupted) {
           geminiIsSpeaking = false;
           console.log(`🤖 Gemini lopetti puheen (Turn: ${isTurnComplete}, Gen: ${isGenerationComplete}, Int: ${isInterrupted})`);
         }
+      }
+
+      // 📝 UUSI: Poimitaan käyttäjän puhe (Litterointi/Transcription) talteen, jonka Gemini tunnisti livenä
+      if (parsed.serverContent && parsed.serverContent.userTurn) {
+        const parts = parsed.serverContent.userTurn.parts || [];
+        parts.forEach(p => {
+          if (p.text && p.text.trim().length > 0) {
+            chatHistory.push({ role: 'user', text: p.text.trim() });
+          }
+        });
       }
 
       if (!text.includes("inlineData")) {
@@ -177,7 +198,7 @@ ${edellinenPuheluTiivistelma}
   });
 
   // ==========================================
-  // FLUTTER -> GEMINI (Puskuroitu & suodatettu lähetys)
+  // FLUTTER -> GEMINI
   // ==========================================
   ws.on('message', (message) => {
     if (!geminiWs || geminiWs.readyState !== WebSocket.OPEN || !isGoogleReady) {
@@ -187,20 +208,17 @@ ${edellinenPuheluTiivistelma}
     try {
       const parsed = JSON.parse(message.toString());
 
-      // 🎯 KAIKUENESTO-LUKKO: Jos Gemini puhuu, mikrofoniääntä ei päästetä läpi lainkaan
       if (geminiIsSpeaking) {
         if (parsed.realtimeInput && parsed.realtimeInput.audio) {
-          audioBuffer = []; // Tyhjennetään puskuri taustalta varmuuden vuoksi
+          audioBuffer = []; 
           return; 
         }
       }
 
-      // Jos kyseessä on mikrofoniääni, käsitellään se joustavan puskurin kautta
       if (parsed.realtimeInput && parsed.realtimeInput.audio && parsed.realtimeInput.audio.data) {
         const rawBuffer = Buffer.from(parsed.realtimeInput.audio.data, 'base64');
         audioBuffer.push(rawBuffer);
 
-        // Kun kasassa on riittävästi dataa (esim. ~100ms edestä), lähetetään se pakettina Googlelle
         if (audioBuffer.length >= BUFFER_THRESHOLD) {
           const combinedBuffer = Buffer.concat(audioBuffer);
           
@@ -214,10 +232,9 @@ ${edellinenPuheluTiivistelma}
           };
 
           geminiWs.send(JSON.stringify(optimizedMessage));
-          audioBuffer = []; // Nollataan jono
+          audioBuffer = []; 
         }
       } else {
-        // Kaikki muut kuin audioviestit (esim. kontrolliviestit) läpi heti sellaisenaan
         geminiWs.send(JSON.stringify(parsed));
       }
 
@@ -226,6 +243,9 @@ ${edellinenPuheluTiivistelma}
     }
   });
 
+  // ==========================================
+  // PUHELUN SULKEUTUMINEN (Päivitykset + Vercel-pukku)
+  // ==========================================
   ws.on('close', async () => {
     console.log("Puhelu päättyi.");
     clearInterval(quotaCheckInterval);
@@ -234,6 +254,7 @@ ${edellinenPuheluTiivistelma}
     const usedMinutes = Math.ceil(durationSeconds / 60);
     console.log("Used minutes:", usedMinutes);
 
+    // 1. Päivitetään minuuttikiintiöt Firestoreen (Alkuperäinen koodisi)
     if (userId && usedMinutes > 0) {
       try {
         console.log("WRITING TO FIRESTORE NOW");
@@ -254,8 +275,42 @@ ${edellinenPuheluTiivistelma}
       }
     }
     
+    // 2. Suljetaan Geminin WebSocket heti, jotta kallis Live Audio -laskutus katkeaa lennosta
     if (geminiWs) {
       geminiWs.close();
+    }
+
+    // 📝 3. UUSI: Lähetetään kertyneet tekstit Vercelin 'processMentorAnalysis' -funktiolle
+    if (userId && chatHistory.length > 0) {
+      try {
+        console.log("Lähetetään transkriptio Verceliin halpaa analyysiä varten...");
+        
+        // Rakennetaan selkeä tekstipötkö: "Käyttäjä: Hei", "Mentor: Huomenta" jne.
+        const fullTranscript = chatHistory
+          .map(h => `${h.role === 'user' ? 'Käyttäjä' : 'Mentor'}: ${h.text}`)
+          .join('\n');
+
+        // HUOM: Vaihda tähän alle sinun TARKKA Vercel-projektisi osoite!
+        const vercelUrl = 'https://sinun-vercel-osoitteesi.vercel.app/api/processMentorAnalysis';
+
+        // Pukataan data taustalla Vercelille (ilman awaitia, ettei puhelun sulku viivästy!)
+        fetch(vercelUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: userId,
+            companyId: companyId,
+            durationSeconds: Math.round(durationSeconds),
+            transcript: fullTranscript
+          })
+        })
+        .then(res => res.json())
+        .then(data => console.log("✅ Vercel suoritti mentor-analyysin:", data.message || data))
+        .catch(err => console.error("❌ Vercel-kutsu epäonnistui:", err));
+
+      } catch (analError) {
+        console.error("Virhe Vercel-kutsun valmistelussa:", analError);
+      }
     }
   });
 
