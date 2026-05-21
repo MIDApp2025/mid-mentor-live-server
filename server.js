@@ -165,11 +165,20 @@ ${edellinenPuheluTiivistelma}
         const isInterrupted = parsed.serverContent.interrupted === true;
         
         if (isTurnComplete || isGenerationComplete || isInterrupted) {
-          geminiIsSpeaking = false;
-          console.log(`🤖 Gemini lopetti puheen (Turn: ${isTurnComplete}, Gen: ${isGenerationComplete}, Interrupted: ${isInterrupted}). Mikrofoni avattu.`);
-        }
-      }
 
+  setTimeout(() => {
+    geminiIsSpeaking = false;
+
+    console.log(
+      `🤖 Gemini lopetti puheen 
+      (Turn: ${isTurnComplete}, 
+      Gen: ${isGenerationComplete}, 
+      Interrupted: ${isInterrupted})`
+    );
+
+  }, 700);
+}
+        } // <-- TÄMÄ PUUTTUU SINULTA
       // Tulostetaan teksti VAIN jos se EI sisällä raakaa audiodataa
       if (!text.includes("inlineData")) {
         console.log("FROM GEMINI (System/Text):", text.slice(0, 300));
