@@ -55,26 +55,12 @@ wss.on('connection', async (ws, req) => {
     }
   }
 
-  quotaCheckInterval = setInterval(() => {
+ quotaCheckInterval = setInterval(() => {
     const elapsedSeconds = (Date.now() - startTime) / 1000;
 
-    const usedMinutesRealtime =
-  Math.floor(elapsedSeconds / 60);
-
-const newRemainingRealtime =
-  Math.max(0, remainingMinutes - usedMinutesRealtime);
-
-if (userId) {
-  db.collection('userProfiles')
-    .doc(userId)
-    .update({
-      voice_quota_remaining:
-        newRemainingRealtime
-    })
-    .catch(console.error);
-}
-
-    if (elapsedSeconds / 60 >= remainingMinutes) {
+    // 🎯 VALVONTA: Katkaisee puhelun vain, jos minuuttisaldo ylittyy.
+    // Pidetään userId-tarkistus mukana suojana.
+    if (userId && (elapsedSeconds / 60 >= remainingMinutes)) {
       console.log(`User ${userId} quota exceeded`);
 
       ws.send(
@@ -87,7 +73,7 @@ if (userId) {
       ws.close(4000, "Quota exceeded");
     }
   }, 10000);
-
+  
   geminiWs.on('open', () => {
     console.log("Yhteys Google Gemini 3.1 Liveen avattu. Lähetetään setup...");
     
