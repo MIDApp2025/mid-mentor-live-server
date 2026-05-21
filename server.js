@@ -291,8 +291,8 @@ ${edellinenPuheluTiivistelma}
           .join('\n');
 
         // HUOM: Vaihda tähän alle sinun TARKKA Vercel-projektisi osoite!
-        const vercelUrl = 'https://sinun-vercel-osoitteesi.vercel.app/api/processMentorAnalysis';
-
+        const vercelUrl = 'https://www.midconsulting.io/api/processMentorAnalysis';
+        
         // Pukataan data taustalla Vercelille (ilman awaitia, ettei puhelun sulku viivästy!)
         fetch(vercelUrl, {
           method: 'POST',
