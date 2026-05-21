@@ -27,54 +27,54 @@ wss.on('connection', async (ws, req) => {
   console.log("Puhelin yhdisti palvelimelle! Avataan yhteys Geminiin...");
   let geminiWs = new WebSocket(GEMINI_WS_URL);
   const url = new URL(req.url, `http://${req.headers.host}`);
-const userId = url.searchParams.get('userId');
+  const userId = url.searchParams.get('userId');
 
-const startTime = Date.now();
+  const startTime = Date.now();
 
-let quotaCheckInterval = null;
-  let geminiIsSpeaking = false; // Pitää kirjaa Geminin puhetilasta
+  let quotaCheckInterval = null;
+  let geminiIsSpeaking = false; // 🎯 ALUSTUS: Pitää kirjaa Geminin puhetilasta
   let isGoogleReady = false; 
   let remainingMinutes = 30;
 
-if (userId) {
-  try {
-    const userDoc = await db.collection('userProfiles').doc(userId).get();
+  if (userId) {
+    try {
+      const userDoc = await db.collection('userProfiles').doc(userId).get();
 
-    if (userDoc.exists) {
-      remainingMinutes =
-        userDoc.data().voice_quota_remaining ?? 30;
+      if (userDoc.exists) {
+        remainingMinutes = userDoc.data().voice_quota_remaining ?? 30;
+      }
+
+      console.log("Remaining minutes:", remainingMinutes);
+
+      if (remainingMinutes <= 0) {
+        ws.close(4003, "No minutes remaining");
+        return;
+      }
+    } catch (err) {
+      console.error("Quota read error:", err);
     }
+  }
 
-    console.log("Remaining minutes:", remainingMinutes);
+  quotaCheckInterval = setInterval(() => {
+    const elapsedSeconds = (Date.now() - startTime) / 1000;
 
-    if (remainingMinutes <= 0) {
-      ws.close(4003, "No minutes remaining");
-      return;
+    if (elapsedSeconds / 60 >= remainingMinutes) {
+      console.log(`User ${userId} quota exceeded`);
+
+      ws.send(
+        JSON.stringify({
+          type: "error",
+          message: "Voice minutes exhausted"
+        })
+      );
+
+      ws.close(4000, "Quota exceeded");
     }
-  } catch (err) {
-    console.error("Quota read error:", err);
-  }
-}
-quotaCheckInterval = setInterval(() => {
-  const elapsedSeconds = (Date.now() - startTime) / 1000;
+  }, 10000);
 
-  if (elapsedSeconds / 60 >= remainingMinutes) {
-    console.log(`User ${userId} quota exceeded`);
-
-    ws.send(
-      JSON.stringify({
-        type: "error",
-        message: "Voice minutes exhausted"
-      })
-    );
-
-    ws.close(4000, "Quota exceeded");
-  }
-}, 10000);
-geminiWs.on('open', () => {
+  geminiWs.on('open', () => {
     console.log("Yhteys Google Gemini 3.1 Liveen avattu. Lähetetään setup...");
     
-    // 🧠 PALAUTE EDELLESEN PUHELUN ASIASTA (Paikka Firebasen datalle)
     const edellinenPuheluTiivistelma = "Käyttäjän kanssa on aloitettu hyvinvointivalmennus."; 
 
     const systemPrompt = `
@@ -122,6 +122,7 @@ Never mention AI, NLP, coaching frameworks, or psychological methodologies.
 
 Detect the user's language immediately and continue fully in that language.
 
+
 Previous session context:
 ${edellinenPuheluTiivistelma}
 `;
@@ -144,41 +145,40 @@ ${edellinenPuheluTiivistelma}
     geminiWs.send(JSON.stringify(setupMessage));
   });
 
-  // Gemini -> Flutter
-  // Gemini -> Flutter
-  // Gemini -> Flutter
-  // Gemini -> Flutter
-// Gemini -> Flutter
+  // ==========================================
+  // GEMINI -> FLUTTER (Tähän tuli se parannettu seuranta)
+  // ==========================================
   geminiWs.on('message', (data) => {
     try {
       const text = data.toString();
-      
-      // Tulostetaan teksti VAIN jos se EI sisällä raakaa audiodataa (säästää lokeja)
-      if (!text.includes("inlineData")) {
-        console.log("FROM GEMINI (System/Text):", text.slice(0, 300));
-      }
-
       const parsed = JSON.parse(text);
 
-      // 🎯 SEURATAAN MILLOIN GEMINI PUHUU:
       if (parsed.serverContent) {
-        // Jos sieltä tulee modelTurn ja osia (audio), Gemini puhuu parhaillaan
+        // 1. Jos sieltä tulee modelTurn (eli aitoa puhetta/dataa), Gemini puhuu VARMASTI
         if (parsed.serverContent.modelTurn) {
           geminiIsSpeaking = true;
         }
         
-        // Kun tekoälyn vuoro (lause/vastaus) on kokonaan valmis, vapautetaan mikrofoni
-        if (parsed.serverContent.turnComplete === true || parsed.serverContent.generationComplete === true) {
+        // 2. Katsotaan onko vuoro TODELLA ohi (tai jos se keskeytettiin)
+        const isTurnComplete = parsed.serverContent.turnComplete === true;
+        const isGenerationComplete = parsed.serverContent.generationComplete === true;
+        const isInterrupted = parsed.serverContent.interrupted === true;
+        
+        if (isTurnComplete || isGenerationComplete || isInterrupted) {
           geminiIsSpeaking = false;
-          console.log("🤖 Gemini lopetti puheen. Mikrofoni avattu.");
+          console.log(`🤖 Gemini lopetti puheen (Turn: ${isTurnComplete}, Gen: ${isGenerationComplete}, Interrupted: ${isInterrupted}). Mikrofoni avattu.`);
         }
+      }
+
+      // Tulostetaan teksti VAIN jos se EI sisällä raakaa audiodataa
+      if (!text.includes("inlineData")) {
+        console.log("FROM GEMINI (System/Text):", text.slice(0, 300));
       }
 
       if (parsed.setupComplete) {
         isGoogleReady = true;
         console.log("🎤 Audio streaming enabled & setupComplete!");
 
-        // 🔥 PAKOTETAAN GEMINI ALOITTAMAAN PUHELU ITSE (Keskeytykset estetty alussa)
         const kaynnistysViesti = {
           clientContent: {
             turns: [{
@@ -197,32 +197,26 @@ ${edellinenPuheluTiivistelma}
       ws.send(data);
     }
   });
-  // Flutter -> Gemini
-  // Flutter -> Gemini
+
+  // ==========================================
+  // FLUTTER -> GEMINI (Sinun alkuperäinen lohkosi korjattuna)
+  // ==========================================
   ws.on('message', (message) => {
     if (!geminiWs || geminiWs.readyState !== WebSocket.OPEN || !isGoogleReady) {
       return;
     }
 
-    // 🎯 KAIKUENESTO PALVELIMELLA:
-    // Jos Gemini puhuu parhaillaan, EI päästetä mikrofonidataa läpi Googlelle asti.
-    // Tämä estää kaiun puhelimen kaiuttimesta mikkiin ja säästää token-kuluja rajusti!
-    if (geminiIsSpeaking) {
-      try {
-        const parsed = JSON.parse(message.toString());
-        // Sallitaan vain järjestelmäviestit tai muut kuin reaaliaikainen audio, jos sellaisia on.
-        // Mutta jos kyseessä on mikrofoniääni (realtimeInput), skipataan se kokonaan.
-        if (parsed.realtimeInput && parsed.realtimeInput.audio) {
-          return; // Blokataan mikkiääni lennosta!
-        }
-      } catch (e) {
-        // Jos se on raakaa dataa tai rikkinäistä JSONia, varmuuden vuoksi blokataan se Geminin puhuessa
-        return;
-      }
-    }
-
     try {
       const parsed = JSON.parse(message.toString());
+
+      // 🎯 KAIKUENESTO-LUKKO:
+      // Jos Gemini puhuu parhaillaan, EI lähetetä mikrofoniääntä Googlelle asti.
+      if (geminiIsSpeaking) {
+        if (parsed.realtimeInput && parsed.realtimeInput.audio) {
+          return; // Blokataan mikkiääni lennosta tähän!
+        }
+      }
+
       geminiWs.send(JSON.stringify(parsed));
     } catch (error) {
       console.error("Virhe JSON välityksessä:", error);
@@ -230,48 +224,40 @@ ${edellinenPuheluTiivistelma}
   });
 
   ws.on('close', async () => {
-  console.log("Puhelu päättyi.");
+    console.log("Puhelu päättyi.");
 
-  clearInterval(quotaCheckInterval);
+    clearInterval(quotaCheckInterval);
 
-  if (geminiWs) {
-    geminiWs.close();
-  }
-
-  const durationSeconds = (Date.now() - startTime) / 1000;
-
-  const usedMinutes = Math.ceil(durationSeconds / 60);
-
-  console.log("Used minutes:", usedMinutes);
-
-  if (userId && usedMinutes > 0) {
-    try {
-      const userRef = db.collection('userProfiles').doc(userId);
-
-      await db.runTransaction(async (transaction) => {
-        const sfDoc = await transaction.get(userRef);
-
-        const currentRemaining =
-          sfDoc.data().voice_quota_remaining ?? 30;
-
-        const newRemaining = Math.max(
-          0,
-          currentRemaining - usedMinutes
-        );
-
-        transaction.update(userRef, {
-          voice_quota_remaining: newRemaining,
-        });
-
-        console.log(
-          `Updated remaining minutes: ${newRemaining}`
-        );
-      });
-    } catch (err) {
-      console.error("Quota update error:", err);
+    if (geminiWs) {
+      geminiWs.close();
     }
-  }
-});
+
+    const durationSeconds = (Date.now() - startTime) / 1000;
+    const usedMinutes = Math.ceil(durationSeconds / 60);
+
+    console.log("Used minutes:", usedMinutes);
+
+    if (userId && usedMinutes > 0) {
+      try {
+        const userRef = db.collection('userProfiles').doc(userId);
+
+        await db.runTransaction(async (transaction) => {
+          const sfDoc = await transaction.get(userRef);
+
+          const currentRemaining = sfDoc.data().voice_quota_remaining ?? 30;
+          const newRemaining = Math.max(0, currentRemaining - usedMinutes);
+
+          transaction.update(userRef, {
+            voice_quota_remaining: newRemaining,
+          });
+
+          console.log(`Updated remaining minutes: ${newRemaining}`);
+        });
+      } catch (err) {
+        console.error("Quota update error:", err);
+      }
+    }
+  });
 
   geminiWs.on('close', (code, reason) => {
     console.log("Gemini sulki yhteyden.");
