@@ -254,6 +254,7 @@ ${edellinenPuheluTiivistelma}
 
           const currentRemaining = sfDoc.data().voice_quota_remaining ?? 30;
           const newRemaining = Math.max(0, currentRemaining - usedMinutes);
+          console.log("FIRESTORE WRITE SUCCESS");
 
           transaction.update(userRef, {
             voice_quota_remaining: newRemaining,
