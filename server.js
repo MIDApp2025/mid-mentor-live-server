@@ -27,7 +27,10 @@ wss.on('connection', async (ws, req) => {
   console.log("Puhelin yhdisti palvelimelle! Avataan yhteys Geminiin...");
   let geminiWs = new WebSocket(GEMINI_WS_URL);
   const url = new URL(req.url, `http://${req.headers.host}`);
-  const userId = url.searchParams.get('userId');
+  
+  // 🔒 LUKITAAN MUUTTUJAT PAREMMIN: Käytetään let-muuttujia, jotta ne näkyvät jokaiseen alalohkoon satavarmasti
+  let userId = url.searchParams.get('userId');
+  let companyId = "YVBGbAsPAUnP3w1OZsMA"; // Oletusarvo
 
   const startTime = Date.now();
 
@@ -35,7 +38,6 @@ wss.on('connection', async (ws, req) => {
   let geminiIsSpeaking = false; 
   let isGoogleReady = false; 
   let remainingMinutes = 30;
-  let companyId = "YVBGbAsPAUnP3w1OZsMA"; // Oletusarvo
 
   // 📝 Kerätään puhelun tekstitranskriptio tähän taulukkoon taustalla
   let chatHistory = [];
