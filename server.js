@@ -175,7 +175,13 @@ ${edellinenPuheluTiivistelma}
     try {
       const text = data.toString();
       const parsed = JSON.parse(text);
-
+      
+/ --- BRUTAALI VAKIOINTI ---
+      // Logataan AINA jos viestissä on jotain tekstisisältöä
+      if (text.includes("text") || text.includes("inputTranscription")) {
+         console.log("DEBUG-LOKI: Viesti sisälsi tekstiä:", text.slice(0, 500));
+      }
+      
       if (parsed.serverContent) {
         if (parsed.serverContent.modelTurn) {
           geminiIsSpeaking = true;
