@@ -87,13 +87,13 @@ wss.on('connection', async (ws, req) => {
 
     if (remainingMinutes <= 0) {
       ws.close(4003, "No minutes remaining");
-      if (geminiWs) geminiWs.close();
       return;
     }
   } catch (err) {
     console.error("Quota read error:", err);
   }
-  // POISTA SE } TÄSTÄ (oli rivillä 80)
+
+   geminiWs = new WebSocket(GEMINI_WS_URL);
 
   // Nyt kaikki tämä koodi on "connection"-funktion sisällä:
   quotaCheckInterval = setInterval(() => {
