@@ -74,6 +74,7 @@ wss.on('connection', async (ws, req) => {
   let remainingMinutes = 30;
 let latestConversationSummary = "";
   let audioBuffer = [];
+  let previousMemoryContext = "Käyttäjän kanssa on aloitettu hyvinvointivalmennus.";
   const BUFFER_THRESHOLD = 2;
 
   // Haetaan loput tiedot Firestoresta (Tämä lohko pysyy samana, mutta käyttää varmistettua ws.userId:tä)
@@ -82,6 +83,17 @@ let latestConversationSummary = "";
     if (userDoc.exists) {
       remainingMinutes = userDoc.data().voice_quota_remaining ?? 30;
       ws.companyId = userDoc.data().companyId || "YVBGbAsPAUnP3w1OZsMA";
+      
+      const memoryContext = userDoc.data().mentor_context;
+const memoryKeywords = userDoc.data().mentor_keywords;
+
+if (memoryContext) {
+  previousMemoryContext = memoryContext;
+}
+
+if (memoryKeywords && Array.isArray(memoryKeywords)) {
+  previousMemoryContext += ` Aiemmat avainsanat: ${memoryKeywords.join(', ')}.`;
+}
     }
     console.log("Remaining minutes:", remainingMinutes, "Company ID:", ws.companyId);
 
@@ -109,7 +121,7 @@ geminiWs.on('open', () => {
     
     // Lisätään pieni viive, jotta Google-yhteys ehtii "asettua"
     setTimeout(() => {
-        const edellinenPuheluTiivistelma = "Käyttäjän kanssa on aloitettu hyvinvointivalmennus."; 
+        const edellinenPuheluTiivistelma = previousMemoryContext;
 
         const systemPrompt = `
 Your name is MID Mentor.
@@ -182,7 +194,7 @@ ${edellinenPuheluTiivistelma}
         
         const isTurnComplete = parsed.serverContent.turnComplete === true;
         const isGenerationComplete = parsed.serverContent.generationComplete === true;
-        const isInterrupted = parsed.serverContent.interrupted === true;
+        
         
        if (isTurnComplete || isGenerationComplete) {
   geminiIsSpeaking = false;
