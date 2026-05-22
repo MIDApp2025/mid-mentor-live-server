@@ -204,16 +204,26 @@ ${edellinenPuheluTiivistelma}
         }
       }
 
-if (parsed.serverContent && parsed.serverContent.userTurn) {
-        const parts = parsed.serverContent.userTurn.parts || [];
-        parts.forEach(p => {
-          if (p.text && p.text.trim().length > 0) {
-            lastSpeechTimestamp = Date.now();
-            console.log("🎤 Käyttäjän puhe havaittu -> inactivity timer reset");
-            chatHistory.push({ role: 'user', text: p.text.trim() });
-          }
-        });
+// TÄSTÄ ALKAA KORVATTAVA ALUE
+     // TÄMÄ ON KORJATTU VERSIO:
+      if (parsed.serverContent) {
+        // Tapa 1: userTurn (puheen sisältö)
+        if (parsed.serverContent.userTurn) {
+          const parts = parsed.serverContent.userTurn.parts || [];
+          parts.forEach(p => {
+            if (p.text && p.text.trim().length > 0) {
+              lastSpeechTimestamp = Date.now();
+              chatHistory.push({ role: 'user', text: p.text.trim() });
+            }
+          });
+        }
+        // Tapa 2: inputTranscription (suora teksti)
+        if (parsed.serverContent.inputTranscription && parsed.serverContent.inputTranscription.text) {
+          lastSpeechTimestamp = Date.now();
+          chatHistory.push({ role: 'user', text: parsed.serverContent.inputTranscription.text.trim() });
+        }
       }
+      // TÄHÄN ASTI POISTAT JA LAITAT TÄMÄN TILALL
 
       if (!text.includes("inlineData")) {
         console.log("FROM GEMINI (System/Text):", text.slice(0, 300));
