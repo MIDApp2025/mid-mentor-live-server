@@ -65,6 +65,7 @@ wss.on('connection', async (ws, req) => {
   // --- TÄSTÄ ETEENPÄIN KÄYTTÄJÄ ON REHELLINEN JA TURVALLINEN ---
 
   // Avataan yhteys Geminiin vasta nyt, kun tiedämme kuka linjoilla on
+  geminiWs = new WebSocket(GEMINI_WS_URL);
 
   const startTime = Date.now();
   let quotaCheckInterval = null;
@@ -74,8 +75,6 @@ wss.on('connection', async (ws, req) => {
   let chatHistory = [];
   let audioBuffer = [];
   const BUFFER_THRESHOLD = 2;
-
-  let lastSpeechTimestamp = Date.now();
 
   // Haetaan loput tiedot Firestoresta (Tämä lohko pysyy samana, mutta käyttää varmistettua ws.userId:tä)
  try {
@@ -100,13 +99,6 @@ wss.on('connection', async (ws, req) => {
   quotaCheckInterval = setInterval(() => {
     // KÄYTÄ ws.userId TÄSSÄ:
     const elapsedSeconds = (Date.now() - startTime) / 1000;
-    const silenceSeconds = (Date.now() - lastSpeechTimestamp) / 1000;
-
-if (silenceSeconds >= 120) {
-  console.log("⏰ Puhelu suljetaan: 2 minuuttia ilman oikeaa puhetta.");
-  ws.close(4005, "Inactive session");
-  return;
-}
     if (ws.userId && (elapsedSeconds / 60 >= remainingMinutes)) {
       ws.close(4000, "Quota exceeded");
     }
@@ -175,13 +167,7 @@ ${edellinenPuheluTiivistelma}
     try {
       const text = data.toString();
       const parsed = JSON.parse(text);
-      
-// BRUTAALI VAKIOINTI ---
-      // Logataan AINA jos viestissä on jotain tekstisisältöä
-      if (text.includes("text") || text.includes("inputTranscription")) {
-         console.log("DEBUG-LOKI: Viesti sisälsi tekstiä:", text.slice(0, 500));
-      }
-      
+
       if (parsed.serverContent) {
         if (parsed.serverContent.modelTurn) {
           geminiIsSpeaking = true;
@@ -204,27 +190,13 @@ ${edellinenPuheluTiivistelma}
         }
       }
 
-// ==========================================
-      // KÄYTTÄJÄN PUHEEN POIMINTA (KORJATTU)
-      // ==========================================
-      if (parsed.serverContent) {
-        // Tapa 1: userTurn (puheen sisältö)
-        if (parsed.serverContent.userTurn) {
-          const parts = parsed.serverContent.userTurn.parts || [];
-          parts.forEach(p => {
-            if (p.text && p.text.trim().length > 0) {
-              lastSpeechTimestamp = Date.now();
-              chatHistory.push({ role: 'user', text: p.text.trim() });
-              console.log("🎤 POIMITTU (userTurn):", p.text.trim());
-            }
-          });
-        }
-        // Tapa 2: inputTranscription (suora teksti)
-        if (parsed.serverContent.inputTranscription && parsed.serverContent.inputTranscription.text) {
-          lastSpeechTimestamp = Date.now();
-          chatHistory.push({ role: 'user', text: parsed.serverContent.inputTranscription.text.trim() });
-          console.log("🎤 POIMITTU (Transcription):", parsed.serverContent.inputTranscription.text.trim());
-        }
+      if (parsed.serverContent && parsed.serverContent.userTurn) {
+        const parts = parsed.serverContent.userTurn.parts || [];
+        parts.forEach(p => {
+          if (p.text && p.text.trim().length > 0) {
+            chatHistory.push({ role: 'user', text: p.text.trim() });
+          }
+        });
       }
 
       if (!text.includes("inlineData")) {
@@ -247,9 +219,7 @@ ${edellinenPuheluTiivistelma}
         geminiWs.send(JSON.stringify(kaynnistysViesti));
         console.log("🤖 Käynnistyskäsky lähetetty Geminiin. Gemini aloittaa puhelun!");
       }
-    } catch (e) {
-      console.error("Virhe viestin käsittelyssä:", e);
-    }
+    } catch (_) {}
     
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(data);
