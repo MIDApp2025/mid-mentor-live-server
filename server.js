@@ -73,6 +73,7 @@ wss.on('connection', async (ws, req) => {
   let isGoogleReady = false; 
   let remainingMinutes = 30;
 let latestConversationSummary = "";
+  let idleTimer = null;
   let audioBuffer = [];
   let previousMemoryContext = "Käyttäjän kanssa on aloitettu hyvinvointivalmennus.";
   const BUFFER_THRESHOLD = 2;
@@ -189,6 +190,13 @@ If you reference earlier conversations, do it briefly and naturally at the begin
 ) {
   latestConversationSummary +=
     parsed.serverContent.inputTranscription.text + " ";
+          
+          clearTimeout(idleTimer);
+
+idleTimer = setTimeout(() => {
+  console.log("⏰ Idle timeout - puhelu suljetaan");
+  ws.close(4000, "Idle timeout");
+}, 120000);
 }
         if (parsed.serverContent.modelTurn) {
   geminiIsSpeaking = true;
@@ -295,6 +303,7 @@ If you reference earlier conversations, do it briefly and naturally at the begin
   ws.on('close', async () => {
     console.log(`🔴 Puhelu päättyi. Aloitetaan sulkuprosessit käyttäjälle: ${ws.userId || 'Tuntematon'}`);
     clearInterval(quotaCheckInterval);
+    clearTimeout(idleTimer);
 
     const durationSeconds = (Date.now() - startTime) / 1000;
     const usedMinutes = Math.ceil(durationSeconds / 60);
