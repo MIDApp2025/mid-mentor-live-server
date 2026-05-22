@@ -204,8 +204,9 @@ ${edellinenPuheluTiivistelma}
         }
       }
 
-// TÄSTÄ ALKAA KORVATTAVA ALUE
-     // TÄMÄ ON KORJATTU VERSIO:
+// ==========================================
+      // KÄYTTÄJÄN PUHEEN POIMINTA (KORJATTU)
+      // ==========================================
       if (parsed.serverContent) {
         // Tapa 1: userTurn (puheen sisältö)
         if (parsed.serverContent.userTurn) {
@@ -214,6 +215,7 @@ ${edellinenPuheluTiivistelma}
             if (p.text && p.text.trim().length > 0) {
               lastSpeechTimestamp = Date.now();
               chatHistory.push({ role: 'user', text: p.text.trim() });
+              console.log("🎤 POIMITTU (userTurn):", p.text.trim());
             }
           });
         }
@@ -221,9 +223,9 @@ ${edellinenPuheluTiivistelma}
         if (parsed.serverContent.inputTranscription && parsed.serverContent.inputTranscription.text) {
           lastSpeechTimestamp = Date.now();
           chatHistory.push({ role: 'user', text: parsed.serverContent.inputTranscription.text.trim() });
+          console.log("🎤 POIMITTU (Transcription):", parsed.serverContent.inputTranscription.text.trim());
         }
       }
-      // TÄHÄN ASTI POISTAT JA LAITAT TÄMÄN TILALL
 
       if (!text.includes("inlineData")) {
         console.log("FROM GEMINI (System/Text):", text.slice(0, 300));
@@ -245,7 +247,9 @@ ${edellinenPuheluTiivistelma}
         geminiWs.send(JSON.stringify(kaynnistysViesti));
         console.log("🤖 Käynnistyskäsky lähetetty Geminiin. Gemini aloittaa puhelun!");
       }
-    } catch (_) {}
+    } catch (e) {
+      console.error("Virhe viestin käsittelyssä:", e);
+    }
     
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(data);
