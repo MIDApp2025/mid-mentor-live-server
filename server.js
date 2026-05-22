@@ -176,7 +176,7 @@ ${edellinenPuheluTiivistelma}
       const text = data.toString();
       const parsed = JSON.parse(text);
       
-/ --- BRUTAALI VAKIOINTI ---
+// BRUTAALI VAKIOINTI ---
       // Logataan AINA jos viestissä on jotain tekstisisältöä
       if (text.includes("text") || text.includes("inputTranscription")) {
          console.log("DEBUG-LOKI: Viesti sisälsi tekstiä:", text.slice(0, 500));
