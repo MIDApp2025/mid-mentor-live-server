@@ -65,7 +65,6 @@ wss.on('connection', async (ws, req) => {
   // --- TÄSTÄ ETEENPÄIN KÄYTTÄJÄ ON REHELLINEN JA TURVALLINEN ---
 
   // Avataan yhteys Geminiin vasta nyt, kun tiedämme kuka linjoilla on
-  geminiWs = new WebSocket(GEMINI_WS_URL);
 
   const startTime = Date.now();
   let quotaCheckInterval = null;
@@ -75,6 +74,8 @@ wss.on('connection', async (ws, req) => {
   let chatHistory = [];
   let audioBuffer = [];
   const BUFFER_THRESHOLD = 2;
+
+  let lastSpeechTimestamp = Date.now();
 
   // Haetaan loput tiedot Firestoresta (Tämä lohko pysyy samana, mutta käyttää varmistettua ws.userId:tä)
  try {
@@ -99,6 +100,13 @@ wss.on('connection', async (ws, req) => {
   quotaCheckInterval = setInterval(() => {
     // KÄYTÄ ws.userId TÄSSÄ:
     const elapsedSeconds = (Date.now() - startTime) / 1000;
+    const silenceSeconds = (Date.now() - lastSpeechTimestamp) / 1000;
+
+if (silenceSeconds >= 120) {
+  console.log("⏰ Puhelu suljetaan: 2 minuuttia ilman oikeaa puhetta.");
+  ws.close(4005, "Inactive session");
+  return;
+}
     if (ws.userId && (elapsedSeconds / 60 >= remainingMinutes)) {
       ws.close(4000, "Quota exceeded");
     }
@@ -194,8 +202,12 @@ ${edellinenPuheluTiivistelma}
         const parts = parsed.serverContent.userTurn.parts || [];
         parts.forEach(p => {
           if (p.text && p.text.trim().length > 0) {
-            chatHistory.push({ role: 'user', text: p.text.trim() });
-          }
+  lastSpeechTimestamp = Date.now();
+
+  console.log("🎤 Käyttäjän puhe havaittu -> inactivity timer reset");
+
+  chatHistory.push({ role: 'user', text: p.text.trim() });
+}
         });
       }
 
