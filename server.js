@@ -184,10 +184,9 @@ ${edellinenPuheluTiivistelma}
         const isGenerationComplete = parsed.serverContent.generationComplete === true;
         const isInterrupted = parsed.serverContent.interrupted === true;
         
-        if (isTurnComplete || isGenerationComplete || isInterrupted) {
-          geminiIsSpeaking = false;
-          console.log(`🤖 Gemini lopetti puheen (Turn: ${isTurnComplete}, Gen: ${isGenerationComplete}, Int: ${isInterrupted})`);
-        }
+       if (isTurnComplete || isGenerationComplete) {
+  geminiIsSpeaking = false;
+}
       }
 
       if (parsed.serverContent && parsed.serverContent.userTurn) {
