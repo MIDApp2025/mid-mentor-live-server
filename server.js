@@ -65,7 +65,7 @@ wss.on('connection', async (ws, req) => {
   // --- TÄSTÄ ETEENPÄIN KÄYTTÄJÄ ON REHELLINEN JA TURVALLINEN ---
 
   // Avataan yhteys Geminiin vasta nyt, kun tiedämme kuka linjoilla on
-  geminiWs = new WebSocket(GEMINI_WS_URL);
+
 
   const startTime = Date.now();
   let quotaCheckInterval = null;
