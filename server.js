@@ -104,12 +104,14 @@ wss.on('connection', async (ws, req) => {
     }
   }, 10000);
   
-  geminiWs.on('open', () => {
-    console.log("Yhteys Google Gemini 3.1 Liveen avattu. Lähetetään setup...");
+geminiWs.on('open', () => {
+    console.log("Yhteys Google Gemini 3.1 Liveen avattu. Odotetaan 500ms setupia...");
     
-    const edellinenPuheluTiivistelma = "Käyttäjän kanssa on aloitettu hyvinvointivalmennus."; 
+    // Lisätään pieni viive, jotta Google-yhteys ehtii "asettua"
+    setTimeout(() => {
+        const edellinenPuheluTiivistelma = "Käyttäjän kanssa on aloitettu hyvinvointivalmennus."; 
 
-    const systemPrompt = `
+        const systemPrompt = `
 Your name is MID Mentor.
 You are a highly perceptive, calm, and conversational real-time assistant.
 Your role is to help the user think clearly, organize thoughts, prepare for situations, explore ideas, solve problems, and gain perspective in natural conversation.
@@ -138,22 +140,24 @@ Previous session context:
 ${edellinenPuheluTiivistelma}
 `;
     
-    const setupMessage = {
-      setup: {
-        model: "models/gemini-3.1-flash-live-preview",
-        generationConfig: {
-          responseModalities: ["AUDIO"],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "aoede" } }
+        const setupMessage = {
+          setup: {
+            model: "models/gemini-3.1-flash-live-preview",
+            generationConfig: {
+              responseModalities: ["AUDIO"],
+              speechConfig: {
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: "aoede" } }
+              }
+            },
+            systemInstruction: {
+              parts: [{ text: systemPrompt }]
+            }
           }
-        },
-        systemInstruction: {
-          parts: [{ text: systemPrompt }]
-        }
-      }
-    };
+        };
     
-    geminiWs.send(JSON.stringify(setupMessage));
+        geminiWs.send(JSON.stringify(setupMessage));
+        console.log("Setup lähetetty viiveellä.");
+    }, 500);
   });
 
   // ==========================================
