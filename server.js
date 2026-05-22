@@ -24,58 +24,82 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocket.Server({ server });
 
 wss.on('connection', async (ws, req) => {
-  console.log("Puhelin yhdisti palvelimelle! Avataan yhteys Geminiin...");
-  let geminiWs = new WebSocket(GEMINI_WS_URL);
-  const url = new URL(req.url, `http://${req.headers.host}`);
+  console.log("Puhelin yrittää yhdistää. Aloitetaan Token-tarkistus...");
+  let geminiWs = null; // Avataan Gemini-yhteys vasta kun token on validoitu!
   
-  // 🔒 LUKITAAN MUUTTUJAT PAREMMIN: Käytetään let-muuttujia, jotta ne näkyvät jokaiseen alalohkoon satavarmasti
- const userId = url.searchParams.get('userId');
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const userId = url.searchParams.get('userId');
+  const idToken = url.searchParams.get('token'); // 🔑 Poimitaan frontista tullut Firebase Token
 
-ws.userId = userId;
-ws.companyId = "YVBGbAsPAUnP3w1OZsMA";
+  // 🛡️ TIETOTURVAMUURI 1: Tarkistetaan, että molemmat tiedot löytyvät pyynnöstä
+  if (!userId || !idToken) {
+    console.log("❌ Yhteys hylätty: userId tai token puuttuu pyynnöstä.");
+    ws.close(4001, "Unauthorized: Missing credentials");
+    return;
+  }
+
+  try {
+    // 🛡️ TIETOTURVAMUURI 2: Validoidaan token suoraan Firebasen kautta
+    console.log("Verifioidaan Firebase idToken...");
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    
+    // 🛡️ TIETOTURVAMUURI 3: Varmistetaan, että token kuuluu juuri sille käyttäjälle, joka väittää soittavansa
+    if (decodedToken.uid !== userId) {
+      console.log(`❌ Yhteys hylätty: Tokenin UID (${decodedToken.uid}) ei täsmää annettuun userId-arvoon (${userId})!`);
+      ws.close(4003, "Unauthorized: Identity mismatch");
+      return;
+    }
+
+    console.log(`✅ Token hyväksytty! Käyttäjä ${userId} on tunnistettu onnistuneesti.`);
+    
+    // Tallennetaan vahvistetut tiedot turvallisesti ws-olioon muistiin
+    ws.userId = userId;
+    ws.companyId = "YVBGbAsPAUnP3w1OZsMA"; // Oletusarvo, päivitetään alla
+
+  } catch (authError) {
+    console.error("❌ Firebase Token-varmistus epäonnistui (Token vanhentunut tai väärä):", authError.message);
+    ws.close(4002, "Unauthorized: Invalid or expired token");
+    return;
+  }
+
+  // --- TÄSTÄ ETEENPÄIN KÄYTTÄJÄ ON REHELLINEN JA TURVALLINEN ---
+
+  // Avataan yhteys Geminiin vasta nyt, kun tiedämme kuka linjoilla on
+  geminiWs = new WebSocket(GEMINI_WS_URL);
 
   const startTime = Date.now();
-
   let quotaCheckInterval = null;
   let geminiIsSpeaking = false; 
   let isGoogleReady = false; 
   let remainingMinutes = 30;
-
-  // 📝 Kerätään puhelun tekstitranskriptio tähän taulukkoon taustalla
   let chatHistory = [];
-
-  // 🎯 TAUSTAPALVELIMEN PUSKUROINTI
   let audioBuffer = [];
   const BUFFER_THRESHOLD = 2;
 
-  if (ws.userId) {
-    try {
-      const userDoc = await db.collection('userProfiles').doc(ws.userId).get();
-      if (userDoc.exists) {
-        remainingMinutes = userDoc.data().voice_quota_remaining ?? 30;
-        ws.companyId = userDoc.data().companyId || "YVBGbAsPAUnP3w1OZsMA";
-      }
-     console.log("Remaining minutes:", remainingMinutes, "Company ID:", ws.companyId);
-
-      if (remainingMinutes <= 0) {
-        ws.close(4003, "No minutes remaining");
-        return;
-      }
-    } catch (err) {
-      console.error("Quota read error:", err);
+  // Haetaan loput tiedot Firestoresta (Tämä lohko pysyy samana, mutta käyttää varmistettua ws.userId:tä)
+ try {
+    const userDoc = await db.collection('userProfiles').doc(ws.userId).get();
+    if (userDoc.exists) {
+      remainingMinutes = userDoc.data().voice_quota_remaining ?? 30;
+      ws.companyId = userDoc.data().companyId || "YVBGbAsPAUnP3w1OZsMA";
     }
-  }
+    console.log("Remaining minutes:", remainingMinutes, "Company ID:", ws.companyId);
 
+    if (remainingMinutes <= 0) {
+      ws.close(4003, "No minutes remaining");
+      if (geminiWs) geminiWs.close();
+      return;
+    }
+  } catch (err) {
+    console.error("Quota read error:", err);
+  }
+  // POISTA SE } TÄSTÄ (oli rivillä 80)
+
+  // Nyt kaikki tämä koodi on "connection"-funktion sisällä:
   quotaCheckInterval = setInterval(() => {
+    // KÄYTÄ ws.userId TÄSSÄ:
     const elapsedSeconds = (Date.now() - startTime) / 1000;
     if (ws.userId && (elapsedSeconds / 60 >= remainingMinutes)) {
-      console.log(`User ${ws.userId} quota exceeded`);
-      ws.send(
-        JSON.stringify({
-          type: "error",
-          message: "Voice minutes exhausted"
-        })
-      );
       ws.close(4000, "Quota exceeded");
     }
   }, 10000);
@@ -198,7 +222,7 @@ ${edellinenPuheluTiivistelma}
     }
   });
 
-    // ==========================================
+  // ==========================================
   // FLUTTER -> GEMINI
   // ==========================================
   ws.on('message', (message) => {
@@ -259,7 +283,7 @@ ${edellinenPuheluTiivistelma}
   // PUHELUN SULKEUTUMINEN (Päivitykset + Vercel-pukku)
   // ==========================================
   ws.on('close', async () => {
-    console.log("🔴 Puhelu päättyi. Aloitetaan sulkuprosessit...");
+    console.log(`🔴 Puhelu päättyi. Aloitetaan sulkuprosessit käyttäjälle: ${ws.userId || 'Tuntematon'}`);
     clearInterval(quotaCheckInterval);
 
     const durationSeconds = (Date.now() - startTime) / 1000;
@@ -267,13 +291,15 @@ ${edellinenPuheluTiivistelma}
     console.log("Used minutes:", usedMinutes);
 
     // 1. Päivitetään minuuttikiintiöt Firestoreen
-   if (ws.userId && usedMinutes > 0) {
+    if (ws.userId && usedMinutes > 0) {
       try {
         console.log("WRITING TO FIRESTORE NOW");
         const userRef = db.collection('userProfiles').doc(ws.userId);
 
         await db.runTransaction(async (transaction) => {
           const sfDoc = await transaction.get(userRef);
+          if (!sfDoc.exists) return; // Turvatarkistus
+          
           const currentRemaining = sfDoc.data().voice_quota_remaining ?? 30;
           const newRemaining = Math.max(0, currentRemaining - usedMinutes);
 
@@ -287,12 +313,12 @@ ${edellinenPuheluTiivistelma}
       }
     }
     
-    // 2. Suljetaan Geminin WebSocket heti laskutuksen katkaisemiseksi
+    // 2. Suljetaan Geminin WebSocket heti
     if (geminiWs) {
       geminiWs.close();
     }
 
-    // 📝 3. Lähetetään tiedot Vercelille AINA kun userId on olemassa
+    // 3. Lähetetään tiedot Vercelille (Käytetään ws.userId ja ws.companyId)
     if (ws.userId) {
       try {
         console.log(`🔍 Valmistellaan Vercel-kutsua. Historian rivejä kerätty: ${chatHistory.length}`);
@@ -304,28 +330,31 @@ ${edellinenPuheluTiivistelma}
         const vercelUrl = 'https://www.midconsulting.io/api/processMentorAnalysis';
         console.log("🚀 Puskettaan analyysipyyntö osoitteeseen:", vercelUrl);
         
+        // Huom: Varmista että ws.companyId on asetettu yhteyden alussa
         fetch(vercelUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: ws.userId,
-companyId: ws.companyId,
+            companyId: ws.companyId || "YVBGbAsPAUnP3w1OZsMA",
             durationSeconds: Math.round(durationSeconds),
             transcript: fullTranscript
           })
         })
         .then(async (res) => {
           console.log(`📡 Vercel vastasi HTTP-statuksella: ${res.status}`);
-          const data = await res.json();
-          console.log("✅ Vercel-analyysin lopputulos:", data);
+          if (res.ok) {
+            const data = await res.json();
+            console.log("✅ Vercel-analyysin lopputulos:", data);
+          }
         })
         .catch(err => console.error("❌ Itse fetch-verkkopyyntö Verceliin epäonnistui:", err));
 
       } catch (analError) {
-        console.error("❌ Virhe Vercel-kutsun suorituksessa Railway-päässä:", analError);
+        console.error("❌ Virhe Vercel-kutsun suorituksessa:", analError);
       }
     } else {
-      console.log("⚠️ Vercel-kutsua ei tehty, koska userId puuttuu.");
+      console.log("⚠️ Vercel-kutsua ei tehty, koska ws.userId puuttuu.");
     }
   });
 
