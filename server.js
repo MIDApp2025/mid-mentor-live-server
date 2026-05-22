@@ -72,7 +72,7 @@ wss.on('connection', async (ws, req) => {
   let geminiIsSpeaking = false; 
   let isGoogleReady = false; 
   let remainingMinutes = 30;
-  let chatHistory = [];
+let latestConversationSummary = "";
   let audioBuffer = [];
   const BUFFER_THRESHOLD = 2;
 
@@ -169,16 +169,16 @@ ${edellinenPuheluTiivistelma}
       const parsed = JSON.parse(text);
 
       if (parsed.serverContent) {
+        if (
+  parsed.serverContent.inputTranscription &&
+  parsed.serverContent.inputTranscription.text
+) {
+  latestConversationSummary +=
+    parsed.serverContent.inputTranscription.text + " ";
+}
         if (parsed.serverContent.modelTurn) {
-          geminiIsSpeaking = true;
-
-          const parts = parsed.serverContent.modelTurn.parts || [];
-          parts.forEach(p => {
-            if (p.text && p.text.trim().length > 0) {
-              chatHistory.push({ role: 'mentor', text: p.text.trim() });
-            }
-          });
-        }
+  geminiIsSpeaking = true;
+}
         
         const isTurnComplete = parsed.serverContent.turnComplete === true;
         const isGenerationComplete = parsed.serverContent.generationComplete === true;
@@ -189,14 +189,7 @@ ${edellinenPuheluTiivistelma}
 }
       }
 
-      if (parsed.serverContent && parsed.serverContent.userTurn) {
-        const parts = parsed.serverContent.userTurn.parts || [];
-        parts.forEach(p => {
-          if (p.text && p.text.trim().length > 0) {
-            chatHistory.push({ role: 'user', text: p.text.trim() });
-          }
-        });
-      }
+     
 
       if (!text.includes("inlineData")) {
         console.log("FROM GEMINI (System/Text):", text.slice(0, 300));
@@ -324,11 +317,12 @@ ${edellinenPuheluTiivistelma}
     // 3. Lähetetään tiedot Vercelille (Käytetään ws.userId ja ws.companyId)
     if (ws.userId) {
       try {
-        console.log(`🔍 Valmistellaan Vercel-kutsua. Historian rivejä kerätty: ${chatHistory.length}`);
+        console.log("🔍 Valmistellaan Vercel-kutsua...");
         
-        const fullTranscript = chatHistory.length > 0
-          ? chatHistory.map(h => `${h.role === 'user' ? 'Käyttäjä' : 'Mentor'}: ${h.text}`).join('\n')
-          : `Käyttäjä kävi lyhyen ${Math.round(durationSeconds)} sekunnin mittaisen mentor-äänipuhelun sovelluksessa.`;
+        const fullTranscript =
+  latestConversationSummary.trim().length > 0
+    ? latestConversationSummary.trim()
+    : `Käyttäjä kävi ${Math.round(durationSeconds)} sekunnin mittaisen mentor-äänipuhelun sovelluksessa.`;
 
         const vercelUrl = 'https://www.midconsulting.io/api/processMentorAnalysis';
         console.log("🚀 Puskettaan analyysipyyntö osoitteeseen:", vercelUrl);
