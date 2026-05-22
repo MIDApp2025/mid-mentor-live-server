@@ -198,16 +198,14 @@ ${edellinenPuheluTiivistelma}
         }
       }
 
-      if (parsed.serverContent && parsed.serverContent.userTurn) {
+if (parsed.serverContent && parsed.serverContent.userTurn) {
         const parts = parsed.serverContent.userTurn.parts || [];
         parts.forEach(p => {
           if (p.text && p.text.trim().length > 0) {
-  lastSpeechTimestamp = Date.now();
-
-  console.log("🎤 Käyttäjän puhe havaittu -> inactivity timer reset");
-
-  chatHistory.push({ role: 'user', text: p.text.trim() });
-}
+            lastSpeechTimestamp = Date.now();
+            console.log("🎤 Käyttäjän puhe havaittu -> inactivity timer reset");
+            chatHistory.push({ role: 'user', text: p.text.trim() });
+          }
         });
       }
 
