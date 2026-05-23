@@ -88,10 +88,51 @@ let latestConversationSummary = "";
       const memoryContext = userDoc.data().mentor_context;
 const memoryKeywords = userDoc.data().mentor_keywords;
 
+      let latestMoodContext = "";
+
+try {
+  const sevenDaysAgo = new Date();
+sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+const moodSnapshot = await db
+  .collection("company_dailyEntries")
+  .where("userId", "==", ws.userId)
+  .where("timestamp", ">=", sevenDaysAgo)
+  .orderBy("timestamp", "desc")
+  .limit(1)
+  .get();
+
+  if (!moodSnapshot.empty) {
+    const moodData = moodSnapshot.docs[0].data();
+
+    latestMoodContext = `
+Käyttäjän viimeisin hyvinvointimerkintä:
+- Mood: ${moodData.mood ?? "N/A"}
+- Motivation: ${moodData.motivation ?? "N/A"}
+- Resilience: ${moodData.resilience ?? "N/A"}
+- Teamwork: ${moodData.teamwork ?? "N/A"}
+- Context: ${moodData.context ?? "N/A"}
+`;
+
+    if (moodData.customContext) {
+      latestMoodContext += `
+Käyttäjän oma huomio:
+${moodData.customContext}
+`;
+    }
+  }
+} catch (err) {
+  console.error("Mood context fetch error:", err);
+}
+
 if (memoryContext) {
   previousMemoryContext = memoryContext;
 }
-
+      
+if (latestMoodContext) {
+  previousMemoryContext += latestMoodContext;
+}
+      
 if (memoryKeywords && Array.isArray(memoryKeywords)) {
   previousMemoryContext += ` Aiemmat avainsanat: ${memoryKeywords.join(', ')}.`;
 }
