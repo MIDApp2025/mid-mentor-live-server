@@ -88,41 +88,43 @@ let latestConversationSummary = "";
       const memoryContext = userDoc.data().mentor_context;
 const memoryKeywords = userDoc.data().mentor_keywords;
 
-      let latestMoodContext = "";
+    let latestMoodContext = "";
 
 try {
-  const sevenDaysAgo = new Date();
-sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const snapshotDoc = await db
+    .collection("userAISnapshots")
+    .doc(ws.userId)
+    .get();
 
-const moodSnapshot = await db
-  .collection("company_dailyEntries")
-  .where("userId", "==", ws.userId)
-  .where("timestamp", ">=", sevenDaysAgo)
-  .orderBy("timestamp", "desc")
-  .limit(1)
-  .get();
+  if (snapshotDoc.exists) {
+    const snapshotData = snapshotDoc.data();
 
-  if (!moodSnapshot.empty) {
-    const moodData = moodSnapshot.docs[0].data();
+    const updatedAt = snapshotData.updated_at
+      ? new Date(snapshotData.updated_at)
+      : null;
 
-    latestMoodContext = `
-Käyttäjän viimeisin hyvinvointimerkintä:
-- Mood: ${moodData.mood ?? "N/A"}
-- Motivation: ${moodData.motivation ?? "N/A"}
-- Resilience: ${moodData.resilience ?? "N/A"}
-- Teamwork: ${moodData.teamwork ?? "N/A"}
-- Context: ${moodData.context ?? "N/A"}
-`;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    if (moodData.customContext) {
-      latestMoodContext += `
-Käyttäjän oma huomio:
-${moodData.customContext}
+    // Käytetään vain jos snapshot on tuore
+    if (updatedAt && updatedAt >= sevenDaysAgo) {
+      latestMoodContext = `
+Recent wellbeing snapshot:
+- Mood average: ${snapshotData.mood_avg ?? "N/A"}
+- Mood trend: ${snapshotData.mood_trend ?? "N/A"}
+- Motivation average: ${snapshotData.motivation_avg ?? "N/A"}
+- Motivation trend: ${snapshotData.motivation_trend ?? "N/A"}
+- Resilience average: ${snapshotData.resilience_avg ?? "N/A"}
+- Resilience trend: ${snapshotData.resilience_trend ?? "N/A"}
+- Teamwork average: ${snapshotData.teamwork_avg ?? "N/A"}
+- Teamwork trend: ${snapshotData.teamwork_trend ?? "N/A"}
+- Context tags: ${(snapshotData.context_tags || []).join(", ")}
+- Confidence level: ${snapshotData.confidence_level ?? "N/A"}
 `;
     }
   }
 } catch (err) {
-  console.error("Mood context fetch error:", err);
+  console.error("Snapshot context fetch error:", err);
 }
 
 if (memoryContext) {
