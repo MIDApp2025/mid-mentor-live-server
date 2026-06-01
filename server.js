@@ -76,7 +76,7 @@ let latestConversationSummary = "";
   let idleTimer = null;
   let audioBuffer = [];
   let previousMemoryContext = "Käyttäjän kanssa on aloitettu hyvinvointivalmennus.";
-  const BUFFER_THRESHOLD = 1;
+  const BUFFER_THRESHOLD = 2;
 
   // Haetaan loput tiedot Firestoresta (Tämä lohko pysyy samana, mutta käyttää varmistettua ws.userId:tä)
  try {
