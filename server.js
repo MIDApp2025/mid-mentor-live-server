@@ -76,7 +76,7 @@ let latestConversationSummary = "";
   let idleTimer = null;
   let audioBuffer = [];
   let previousMemoryContext = "Käyttäjän kanssa on aloitettu hyvinvointivalmennus.";
-  const BUFFER_THRESHOLD = 2;
+  const BUFFER_THRESHOLD = 1;
 
   // Haetaan loput tiedot Firestoresta (Tämä lohko pysyy samana, mutta käyttää varmistettua ws.userId:tä)
  try {
@@ -161,7 +161,7 @@ if (memoryKeywords && Array.isArray(memoryKeywords)) {
   }, 10000);
   
 geminiWs.on('open', () => {
-    console.log("Yhteys Google Gemini 3.1 Liveen avattu. Odotetaan 500ms setupia...");
+    console.log("Yhteys Google Gemini 3.1 Liveen avattu. Odotetaan 300ms setupia...");
     
     // Lisätään pieni viive, jotta Google-yhteys ehtii "asettua"
     setTimeout(() => {
