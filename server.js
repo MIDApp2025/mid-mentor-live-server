@@ -30,6 +30,7 @@ wss.on('connection', async (ws, req) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const userId = url.searchParams.get('userId');
   const idToken = url.searchParams.get('token'); // 🔑 Poimitaan frontista tullut Firebase Token
+  ws.clientType = url.searchParams.get('client') || 'native';
 
   // 🛡️ TIETOTURVAMUURI 1: Tarkistetaan, että molemmat tiedot löytyvät pyynnöstä
   if (!userId || !idToken) {
@@ -295,12 +296,12 @@ idleTimer = setTimeout(() => {
     try {
       const parsed = JSON.parse(message.toString());
 
-      if (geminiIsSpeaking) {
-        if (parsed.realtimeInput && parsed.realtimeInput.audio) {
-          audioBuffer = []; 
-          return; 
-        }
-      }
+     if (geminiIsSpeaking && ws.clientType === "native") {
+  if (parsed.realtimeInput && parsed.realtimeInput.audio) {
+    audioBuffer = [];
+    return;
+  }
+}
 
       if (parsed.realtimeInput && parsed.realtimeInput.audio && parsed.realtimeInput.audio.data) {
         const rawBuffer = Buffer.from(parsed.realtimeInput.audio.data, 'base64');
