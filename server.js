@@ -63,7 +63,24 @@ wss.on('connection', async (ws, req) => {
     return;
   }
 
-  // --- TÄSTÄ ETEENPÄIN KÄYTTÄJÄ ON REHELLINEN JA TURVALLINEN ---
+   // --- TÄSTÄ ETEENPÄIN KÄYTTÄJÄ ON REHELLINEN JA TURVALLINEN ---
+
+  // 🔐 AI consent gate
+  // User must accept AI data processing before live mentor audio is handled.
+  try {
+    const consentSnap = await db.collection('userProfiles').doc(ws.userId).get();
+    const consentData = consentSnap.exists ? consentSnap.data() : null;
+
+    if (consentData?.aiChatConsentAccepted !== true) {
+      console.log(`❌ Mentor-yhteys hylätty: AI consent puuttuu käyttäjältä ${ws.userId}`);
+      ws.close(4004, "AI consent required");
+      return;
+    }
+  } catch (consentError) {
+    console.error("❌ AI consent tarkistus epäonnistui:", consentError.message);
+    ws.close(4005, "AI consent check failed");
+    return;
+  }
 
   // Avataan yhteys Geminiin vasta nyt, kun tiedämme kuka linjoilla on
 
