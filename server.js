@@ -1,6 +1,7 @@
 const http = require('http');
 const WebSocket = require('ws');
 const admin = require('firebase-admin');
+const { verifyEmployeeAccess } = require("./verifyEmployeeAccess");
 
 if (!admin.apps.length) {
   const serviceAccount = JSON.parse(
@@ -81,7 +82,14 @@ wss.on('connection', async (ws, req) => {
     ws.close(4005, "AI consent check failed");
     return;
   }
-
+// 🔐 Access code + subscription gate
+try {
+  await verifyEmployeeAccess(ws.userId);
+} catch (err) {
+  console.error("❌ Mentor-yhteys hylätty:", err.message);
+  ws.close(4006, err.message);
+  return;
+}
   // Avataan yhteys Geminiin vasta nyt, kun tiedämme kuka linjoilla on
 
 
