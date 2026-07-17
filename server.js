@@ -252,6 +252,7 @@ If you reference earlier conversations, do it briefly and naturally at the begin
     try {
       const text = data.toString();
       const parsed = JSON.parse(text);
+      console.log(JSON.stringify(parsed, null, 2));
 
       if (parsed.serverContent) {
         if (
