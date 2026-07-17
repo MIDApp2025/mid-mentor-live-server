@@ -231,7 +231,7 @@ If you reference earlier conversations, do it briefly and naturally at the begin
             generationConfig: {
               responseModalities: ["AUDIO"],
               
-  inputAudioTranscription: {},
+
 
               speechConfig: {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: "aoede" } }
