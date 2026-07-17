@@ -230,6 +230,9 @@ If you reference earlier conversations, do it briefly and naturally at the begin
             model: "models/gemini-3.1-flash-live-preview",
             generationConfig: {
               responseModalities: ["AUDIO"],
+              
+  inputAudioTranscription: {},
+
               speechConfig: {
                 voiceConfig: { prebuiltVoiceConfig: { voiceName: "aoede" } }
               }
