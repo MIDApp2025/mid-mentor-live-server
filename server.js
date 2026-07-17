@@ -100,9 +100,9 @@ try {
   let remainingMinutes = 30;
 let latestConversationSummary = "";
   let idleTimer = null;
-
+  let audioBuffer = [];
   let previousMemoryContext = "Käyttäjän kanssa on aloitettu hyvinvointivalmennus.";
-
+  const BUFFER_THRESHOLD = 1;
 
   // Haetaan loput tiedot Firestoresta (Tämä lohko pysyy samana, mutta käyttää varmistettua ws.userId:tä)
  try {
@@ -226,47 +226,28 @@ If you reference earlier conversations, do it briefly and naturally at the begin
 `;
     
         const setupMessage = {
-  setup: {
-    model: "models/gemini-2.5-flash-native-audio-preview-12-2025",
+          setup: {
+           model: "models/gemini-2.5-flash-native-audio-preview-12-2025",
+            generationConfig: {
+              responseModalities: ["AUDIO"],
+              
 
-    generationConfig: {
-      responseModalities: ["AUDIO"],
-      thinkingConfig: {
-  thinkingBudget: 0,
-  includeThoughts: false
-},
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: {
-            voiceName: "aoede"
+
+              speechConfig: {
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: "aoede" } }
+              }
+            },
+            systemInstruction: {
+              parts: [{ text: systemPrompt }]
+            }
           }
-        }
-      }
-    },
-
-    systemInstruction: {
-      parts: [{ text: systemPrompt }]
-    },
-
-    realtimeInputConfig: {
-      automaticActivityDetection: {
-        disabled: false,
-        startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
-        endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
-        prefixPaddingMs: 20,
-        silenceDurationMs: 500
-      },
-      activityHandling: "START_OF_ACTIVITY_INTERRUPTS"
-    },
-
-    inputAudioTranscription: {}
-  }
-};
-
-geminiWs.send(JSON.stringify(setupMessage));
-console.log("Setup lähetetty viiveellä.");
-          }, 500);
+        };
+    
+        geminiWs.send(JSON.stringify(setupMessage));
+        console.log("Setup lähetetty viiveellä.");
+    }, 500);
   });
+
   // ==========================================
   // GEMINI -> FLUTTER (Ja tekstin poiminta talteen)
   // ==========================================
@@ -336,27 +317,49 @@ idleTimer = setTimeout(() => {
   // ==========================================
   // FLUTTER -> GEMINI
   // ==========================================
-ws.on('message', (message) => {
-  if (
-    !geminiWs ||
-    geminiWs.readyState !== WebSocket.OPEN ||
-    !isGoogleReady
-  ) {
+  ws.on('message', (message) => {
+    if (!geminiWs || geminiWs.readyState !== WebSocket.OPEN || !isGoogleReady) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(message.toString());
+
+     if (geminiIsSpeaking && ws.clientType === "native") {
+  if (parsed.realtimeInput && parsed.realtimeInput.audio) {
+    audioBuffer = [];
     return;
   }
+}
 
-  try {
-    const parsed = JSON.parse(message.toString());
+      if (parsed.realtimeInput && parsed.realtimeInput.audio && parsed.realtimeInput.audio.data) {
+        const rawBuffer = Buffer.from(parsed.realtimeInput.audio.data, 'base64');
+        audioBuffer.push(rawBuffer);
 
-    // Frontin mahdollinen handle ei kuulu Geminin varsinaiseen viestiin.
-    delete parsed.handle;
+        if (audioBuffer.length >= BUFFER_THRESHOLD) {
+          const combinedBuffer = Buffer.concat(audioBuffer);
+          
+          const optimizedMessage = {
+            realtimeInput: {
+              audio: {
+                mimeType: "audio/pcm;rate=16000",
+                data: combinedBuffer.toString('base64')
+              }
+            }
+          };
 
-    geminiWs.send(JSON.stringify(parsed));
-  } catch (error) {
-    console.error("Virhe JSON välityksessä:", error);
-  }
-});
-      
+          geminiWs.send(JSON.stringify(optimizedMessage));
+          audioBuffer = []; 
+        }
+      } else {
+        geminiWs.send(JSON.stringify(parsed));
+      }
+
+    } catch (error) {
+      console.error("Virhe JSON välityksessä:", error);
+    }
+  });
+
   // ==========================================
   // GEMINI STRUCTURAL LISTENERS (Turvalliset paikat)
   // ==========================================
