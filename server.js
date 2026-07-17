@@ -102,7 +102,7 @@ let latestConversationSummary = "";
   let idleTimer = null;
   let audioBuffer = [];
   let previousMemoryContext = "Käyttäjän kanssa on aloitettu hyvinvointivalmennus.";
-  const BUFFER_THRESHOLD = 2;
+  const BUFFER_THRESHOLD = 1;
 
   // Haetaan loput tiedot Firestoresta (Tämä lohko pysyy samana, mutta käyttää varmistettua ws.userId:tä)
  try {
@@ -255,7 +255,7 @@ If you reference earlier conversations, do it briefly and naturally at the begin
     try {
       const text = data.toString();
       const parsed = JSON.parse(text);
-      console.log(JSON.stringify(parsed, null, 2));
+      //console.log(JSON.stringify(parsed, null, 2));
 
       if (parsed.serverContent) {
         if (
