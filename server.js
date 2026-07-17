@@ -227,7 +227,7 @@ If you reference earlier conversations, do it briefly and naturally at the begin
     
         const setupMessage = {
           setup: {
-            model: "models/gemini-3.1-flash-live-preview",
+           model: "models/gemini-2.5-flash-native-audio",
             generationConfig: {
               responseModalities: ["AUDIO"],
               
