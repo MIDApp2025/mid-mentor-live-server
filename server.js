@@ -231,6 +231,10 @@ If you reference earlier conversations, do it briefly and naturally at the begin
 
     generationConfig: {
       responseModalities: ["AUDIO"],
+      thinkingConfig: {
+  thinkingBudget: 0,
+  includeThoughts: false
+},
       speechConfig: {
         voiceConfig: {
           prebuiltVoiceConfig: {
