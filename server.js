@@ -101,6 +101,7 @@ try {
 let latestConversationSummary = "";
   let idleTimer = null;
 let latestTranscriptAt = 0;
+  let turnNumber = 0;
 let firstAudioSeenInTurn = false;
   let previousMemoryContext = "Käyttäjän kanssa on aloitettu hyvinvointivalmennus.";
 
@@ -228,7 +229,7 @@ If you reference earlier conversations, do it briefly and naturally at the begin
     
         const setupMessage = {
   setup: {
-    model: "models/gemini-2.5-flash-native-audio-preview-12-2025",
+          model: "models/gemini-3.1-flash-live-preview",
 
     generationConfig: {
       responseModalities: ["AUDIO"],
@@ -312,13 +313,13 @@ idleTimer = setTimeout(() => {
       ? Date.now() - latestTranscriptAt
       : null;
 
-    console.log(
-      `⏱️ FIRST GEMINI AUDIO: ${
-        measuredMs !== null
-          ? measuredMs + " ms"
-          : "aloitustervehdys"
-      }`
-    );
+    turnNumber++;
+
+console.log(`⏱️ VASTAUS ${turnNumber}: ${
+  measuredMs !== null
+    ? measuredMs + " ms"
+    : "aloitustervehdys"
+}`);
   }
 }
         
