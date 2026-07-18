@@ -100,7 +100,8 @@ try {
   let remainingMinutes = 30;
 let latestConversationSummary = "";
   let idleTimer = null;
-
+let latestTranscriptAt = 0;
+let firstAudioSeenInTurn = false;
   let previousMemoryContext = "Käyttäjän kanssa on aloitettu hyvinvointivalmennus.";
 
 
@@ -283,6 +284,7 @@ console.log("Setup lähetetty viiveellä.");
 ) {
   latestConversationSummary +=
     parsed.serverContent.inputTranscription.text + " ";
+          latestTranscriptAt = Date.now();
           
           clearTimeout(idleTimer);
 
@@ -291,8 +293,33 @@ idleTimer = setTimeout(() => {
   ws.close(4000, "Idle timeout");
 }, 120000);
 }
-        if (parsed.serverContent.modelTurn) {
+       if (parsed.serverContent.modelTurn) {
   geminiIsSpeaking = true;
+
+  const parts = parsed.serverContent.modelTurn.parts || [];
+
+  const containsAudio = parts.some(
+    (part) =>
+      part.inlineData &&
+      part.inlineData.mimeType &&
+      part.inlineData.mimeType.startsWith("audio/")
+  );
+
+  if (containsAudio && !firstAudioSeenInTurn) {
+    firstAudioSeenInTurn = true;
+
+    const measuredMs = latestTranscriptAt
+      ? Date.now() - latestTranscriptAt
+      : null;
+
+    console.log(
+      `⏱️ FIRST GEMINI AUDIO: ${
+        measuredMs !== null
+          ? measuredMs + " ms"
+          : "aloitustervehdys"
+      }`
+    );
+  }
 }
         
         const isTurnComplete = parsed.serverContent.turnComplete === true;
@@ -301,6 +328,10 @@ idleTimer = setTimeout(() => {
         
        if (isTurnComplete || isGenerationComplete) {
   geminiIsSpeaking = false;
+}
+        if (isTurnComplete) {
+  firstAudioSeenInTurn = false;
+  latestTranscriptAt = 0;
 }
       }
 
