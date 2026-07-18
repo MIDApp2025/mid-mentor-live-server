@@ -234,7 +234,7 @@ If you reference earlier conversations, do it briefly and naturally at the begin
     generationConfig: {
       responseModalities: ["AUDIO"],
       thinkingConfig: {
-  thinkingBudget: 0,
+  thinkingLevel: "minimal",
   includeThoughts: false
 },
       speechConfig: {
