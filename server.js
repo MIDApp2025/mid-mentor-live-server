@@ -335,12 +335,6 @@ idleTimer = setTimeout(() => {
 }
       }
 
-     
-
-      if (!text.includes("inlineData")) {
-        console.log("FROM GEMINI (System/Text):", text.slice(0, 300));
-      }
-
       if (parsed.setupComplete) {
         isGoogleReady = true;
         console.log("🎤 Audio streaming enabled & setupComplete!");
