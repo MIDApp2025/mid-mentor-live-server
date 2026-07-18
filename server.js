@@ -255,7 +255,7 @@ If you reference earlier conversations, do it briefly and naturally at the begin
         startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
         endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
         prefixPaddingMs: 20,
-        silenceDurationMs: 500
+        silenceDurationMs: 350
       },
       activityHandling: "START_OF_ACTIVITY_INTERRUPTS"
     },
